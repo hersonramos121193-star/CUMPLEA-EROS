@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#0e2340">
+<meta name="description" content="Dashboard de cumpleaños de colaboradores · Grupo Metelmex">
+<title>Cumpleañeros · Metelmex</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<script src="js/chart.umd.min.js"></script>
+<script src="js/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy-950:#0a1a2f;
+    --navy-900:#0e2340;
+    --navy-800:#123055;
+    --navy-700:#1a4174;
+    --blue-500:#3b7dd8;
+    --blue-300:#8fbaf0;
+    --ice:#eef4fb;
+    --paper:#f7f9fc;
+    --white:#ffffff;
+    --gold:#d4a537;
+    --gold-soft:#fbeecb;
+    --alert:#c0562b;
+    --alert-soft:#fbe4d6;
+    --ok:#2f8f6d;
+    --line:#dde6f0;
+    --text:#16253c;
+    --text-soft:#5b6c85;
+    --radius:14px;
+    --font-display:'Georgia','Iowan Old Style',serif;
+    --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:var(--font-body);
+    background:var(--paper);
+    color:var(--text);
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;}
+
+  /* Header */
+  .topbar{
+    background:linear-gradient(135deg,var(--navy-950) 0%, var(--navy-800) 65%, var(--navy-700) 100%);
+    color:var(--white);
+    padding:28px 32px 34px;
+    position:relative;
+    overflow:hidden;
+  }
+  .topbar::after{
+    content:"";
+    position:absolute; right:-60px; top:-60px;
+    width:260px; height:260px; border-radius:50%;
+    background:radial-gradient(circle,rgba(212,165,55,0.16),transparent 70%);
+  }
+  .topbar-inner{position:relative; z-index:1; max-width:1280px; margin:0 auto;}
+  .eyebrow{
+    text-transform:uppercase; letter-spacing:.14em; font-size:11.5px;
+    color:var(--blue-300); font-weight:600; margin:0 0 8px;
+  }
+  .topbar h1{
+    font-family:var(--font-display); font-weight:700;
+    font-size:clamp(26px,3.4vw,38px); margin:0 0 6px; letter-spacing:.2px;
+  }
+  .topbar p.sub{margin:0; color:#c7d7ec; font-size:14.5px; max-width:640px;}
+
+  .wrap{max-width:1280px; margin:0 auto; padding:26px 32px 64px;}
+
+  /* KPI strip */
+  .kpis{
+    display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin:-40px 0 30px;
+    position:relative; z-index:2;
+  }
+  .kpi-card{
+    background:var(--white); border-radius:var(--radius);
+    border:1px solid var(--line); padding:18px 20px;
+    box-shadow:0 10px 24px -14px rgba(10,26,47,0.25);
+  }
+  .kpi-card .label{font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-soft); font-weight:600;}
+  .kpi-card .value{font-family:var(--font-display); font-size:30px; margin-top:6px; color:var(--navy-900); font-weight:700;}
+  .kpi-card .foot{font-size:12.5px; color:var(--text-soft); margin-top:4px;}
+  .kpi-card.alert .value{color:var(--alert);}
+  .kpi-card.gold .value{color:#a9791b;}
+
+  section{margin-bottom:34px;}
+  .section-head{display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap;}
+  .section-head h2{
+    font-family:var(--font-display); font-size:20px; margin:0; color:var(--navy-900);
+    display:flex; align-items:center; gap:10px;
+  }
+  .section-head h2 .tag{
+    font-family:var(--font-body); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+    background:var(--navy-900); color:#fff; padding:3px 9px; border-radius:20px; font-weight:600;
+  }
+  .section-head .desc{font-size:13px; color:var(--text-soft);}
+
+  .card{
+    background:var(--white); border:1px solid var(--line); border-radius:var(--radius);
+    padding:22px;
+  }
+
+  /* Alert panel: turning 60 */
+  .alert-panel{
+    background:linear-gradient(180deg,var(--alert-soft),#fff 60%);
+    border:1px solid #f0c7a9;
+  }
+  .alert-list{display:flex; flex-direction:column; gap:0;}
+  .alert-row{
+    display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; gap:12px; align-items:center;
+    padding:11px 4px; border-bottom:1px dashed #ecd2ba; font-size:13.5px;
+  }
+  .alert-row:last-child{border-bottom:none;}
+  .alert-row .name{font-weight:600; color:var(--navy-900);}
+  .alert-row .pill{
+    justify-self:start; font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px;
+    background:var(--alert); color:#fff;
+  }
+  .empty-note{color:var(--text-soft); font-size:13.5px; padding:6px 4px;}
+
+  /* Month selector + calendar */
+  .month-controls{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  select, input[type=text]{
+    font-family:var(--font-body); font-size:14px; padding:9px 12px; border-radius:9px;
+    border:1px solid var(--line); background:var(--white); color:var(--text);
+  }
+  select:focus, input:focus{outline:2px solid var(--blue-300); outline-offset:1px;}
+
+  .export-btn{
+    font-family:var(--font-body); font-size:13.5px; font-weight:600; padding:9px 16px;
+    border-radius:9px; border:1px solid var(--navy-900); background:var(--navy-900); color:#fff;
+    cursor:pointer; transition:background .15s ease, transform .1s ease;
+  }
+  .export-btn:hover{background:var(--navy-700);}
+  .export-btn:active{transform:translateY(1px);}
+  .export-btn:disabled{opacity:.5; cursor:not-allowed;}
+
+  .month-summary{display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
+  .chip{
+    font-size:12px; font-weight:600; padding:5px 12px; border-radius:20px;
+    background:var(--ice); color:var(--navy-800); border:1px solid var(--line);
+  }
+  .chip.gold{background:var(--gold-soft); color:#8a6416; border-color:#eddca0;}
+
+  .month-grid{display:flex; flex-direction:column; gap:8px;}
+  .day-row{
+    display:grid; grid-template-columns:56px 1fr; gap:14px; align-items:flex-start;
+    padding:10px 6px; border-bottom:1px solid var(--line);
+  }
+  .day-row:last-child{border-bottom:none;}
+  .day-num{
+    font-family:var(--font-display); font-weight:700; font-size:20px; color:var(--blue-500);
+    text-align:center; padding-top:2px;
+  }
+  .day-people{display:flex; flex-direction:column; gap:6px;}
+  .person-line{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:13.5px;
+  }
+  .person-line .pname{font-weight:600; color:var(--navy-900);}
+  .person-line .pmeta{color:var(--text-soft); font-size:12.5px;}
+  .badge{
+    font-size:10.5px; font-weight:700; padding:2px 8px; border-radius:20px; letter-spacing:.02em;
+  }
+  .badge.admin{background:var(--gold-soft); color:#8a6416; border:1px solid #eddca0;}
+  .badge.turn60{background:var(--alert-soft); color:var(--alert); border:1px solid #f0c7a9;}
+  .badge.greeted{background:#e3f3ec; color:var(--ok); border:1px solid #bfe4d3;}
+  .greet-check{display:flex; align-items:center; gap:6px; cursor:pointer;}
+  .greet-check input{width:15px; height:15px; accent-color:var(--ok); cursor:pointer;}
+  .no-birthdays{color:var(--text-soft); font-size:13.5px; padding:8px 4px;}
+
+  /* Search */
+  .search-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;}
+  .search-row input{flex:1; min-width:220px;}
+  .search-result{min-height:60px;}
+  .person-card{
+    display:grid; grid-template-columns:auto 1fr; gap:18px; padding:18px; border-radius:12px;
+    background:var(--ice); border:1px solid var(--line); align-items:center;
+  }
+  .avatar-circle{
+    width:56px; height:56px; border-radius:50%; background:var(--navy-900); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-family:var(--font-display);
+    font-weight:700; font-size:20px;
+  }
+  .person-card h3{margin:0 0 4px; font-family:var(--font-display); font-size:19px; color:var(--navy-900);}
+  .person-card .grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px 18px; margin-top:8px; font-size:13px;}
+  .person-card .grid2 div span.k{display:block; color:var(--text-soft); font-size:11px; text-transform:uppercase; letter-spacing:.06em;}
+  .person-card .badges{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .not-found{color:var(--text-soft); font-style:italic; font-size:13.5px;}
+
+  /* Table */
+  .table-controls{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;}
+  .table-scroll{overflow-x:auto; border-radius:10px; border:1px solid var(--line);}
+  table{width:100%; border-collapse:collapse; font-size:13px; min-width:760px;}
+  thead th{
+    background:var(--navy-900); color:#fff; text-align:left; padding:11px 12px;
+    font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em;
+    position:sticky; top:0;
+  }
+  tbody td{padding:10px 12px; border-bottom:1px solid var(--line); color:var(--text);}
+  tbody tr:hover{background:var(--ice);}
+  tbody tr:nth-child(even){background:#fbfcfe;}
+  tbody tr:nth-child(even):hover{background:var(--ice);}
+  .table-count{font-size:12.5px; color:var(--text-soft); margin-top:8px;}
+
+  /* Chart */
+  .chart-wrap{position:relative; height:320px;}
+
+  footer{
+    text-align:center; font-size:12px; color:var(--text-soft); padding:20px 0 40px;
+  }
+
+  @media (max-width:900px){
+    .kpis{grid-template-columns:repeat(2,1fr);}
+    .alert-row{grid-template-columns:1.4fr 1fr; row-gap:4px;}
+  }
+  @media (max-width:560px){
+    .kpis{grid-template-columns:1fr;}
+    .topbar{padding:24px 18px 30px;}
+    .wrap{padding:20px 14px 50px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <p class="eyebrow">Recursos Humanos · Grupo Metelmex</p>
+    <h1>Dashboard de Cumpleañeros</h1>
+    <p class="sub">Consulta cumpleaños por mes, busca por número de ficha y da seguimiento a las alertas de próxima jubilación y personal administrativo.</p>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="kpis" id="kpiStrip"></div>
+
+  <!-- Alert: turning 60 -->
+  <section>
+    <div class="section-head">
+      <h2>Próximos a cumplir 60 años <span class="tag">Alerta</span></h2>
+      <div class="desc">Colaboradores a los que les faltan 2 años o menos para cumplir 60</div>
+    </div>
+    <div class="card alert-panel">
+      <div class="alert-list" id="alert60List"></div>
+    </div>
+  </section>
+
+  <!-- Month calendar -->
+  <section>
+    <div class="section-head">
+      <h2>Calendario por mes</h2>
+      <div class="month-controls">
+        <select id="monthSelect"></select>
+        <button id="exportMonthBtn" class="export-btn">⬇ Exportar a Excel</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="month-summary" id="monthSummary"></div>
+      <div class="month-grid" id="monthGrid"></div>
+    </div>
+  </section>
+
+  <!-- Search by ficha -->
+  <section>
+    <div class="section-head">
+      <h2>Búsqueda individual por número de ficha</h2>
+      <div class="desc">Escribe el código de empleado</div>
+    </div>
+    <div class="card">
+      <div class="search-row">
+        <input type="text" id="fichaSearch" placeholder="Ej. 10007" inputmode="numeric">
+      </div>
+      <div class="search-result" id="searchResult"><p class="not-found">Ingresa un número de ficha para ver el detalle del colaborador.</p></div>
+    </div>
+  </section>
+
+  <!-- Filterable table -->
+  <section>
+    <div class="section-head">
+      <h2>Tabla filtrable de colaboradores</h2>
+      <div class="desc">490 registros</div>
+    </div>
+    <div class="card">
+      <div class="table-controls">
+        <select id="deptoFilter"><option value="">Todos los departamentos</option></select>
+        <select id="monthFilter"><option value="">Todos los meses</option></select>
+        <select id="kpiFilter"><option value="">Todas las clasificaciones</option></select>
+        <input type="text" id="tableSearch" placeholder="Buscar por nombre o ficha..." style="min-width:220px;">
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ficha</th><th>Nombre</th><th>Departamento</th><th>Puesto</th><th>Cumpleaños</th><th>Edad</th><th>Clasificación</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="table-count" id="tableCount"></div>
+    </div>
+  </section>
+
+  <!-- Distribution chart -->
+  <section>
+    <div class="section-head">
+      <h2>Distribución de cumpleaños por mes</h2>
+      <div class="desc">Útil para planear con anticipación festejos y detalles</div>
+    </div>
+    <div class="card">
+      <div class="chart-wrap"><canvas id="distChart"></canvas></div>
+    </div>
+  </section>
+
+  <footer>Dashboard interno · Grupo Metelmex · Generado a partir de la matriz de personal activo</footer>
+</div>
+
+<script>
+const RAW_DATA = [{"codigo":"10007","nombre":"JUAN ARTURO AMAYA ORONA","departamento":"CORPORATIVO","puesto":"AUXILIAR DE SEGURIDAD PATRIMONIAL","fechaSerial":25334,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10017","nombre":"ARMANDO CHAVEZ RODRIGUEZ","departamento":"CORPORATIVO","puesto":"COORDINADOR DE COMPRAS","fechaSerial":24696,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10025","nombre":"LAURO CASTILLO GALAVIZ","departamento":"PLANTA 1","puesto":"SUPERVISOR DE TOOLING","fechaSerial":25752,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10029","nombre":"ANDRES FRANCO VASQUEZ","departamento":"CORPORATIVO","puesto":"LIMPIEZA ESPECIAL","fechaSerial":25355,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10040","nombre":"RUBEN GOMEZ GONZALEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE PANTOGRAFO","fechaSerial":25418,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10049","nombre":"CRISTOBAL MUÑOZ TOSCANO","departamento":"PLANTA 2","puesto":"OPERADOR GENERAL","fechaSerial":24774,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10056","nombre":"LUIS ALBERTO MALDONADO SANCHEZ","departamento":"PLANTA 2","puesto":"ENTRENADOR DE ARMADO Y SOLDADURA","fechaSerial":26653,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10133","nombre":"FIDENCIO GOMEZ REYNOSA","departamento":"PLANTA 3","puesto":"OPERADOR DE GRUA","fechaSerial":26321,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10168","nombre":"ISIDRO REFUGIO RUIZ OLIVARES","departamento":"CORPORATIVO","puesto":"DIRECTOR GENERAL","fechaSerial":27579,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10475","nombre":"FELIPE DE JESUS PEREZ MARTINEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE CORTE","fechaSerial":27618,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10494","nombre":"BERNARDO DANIEL SALAZAR CERVANTES","departamento":"PLANTA 3","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":30548,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"10520","nombre":"MARCO ANTONIO MEJIA LEYVA","departamento":"PLANTA 3","puesto":"PREPARADOR DE MATERIALES","fechaSerial":25620,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10654","nombre":"RICARDO ADALBERTO RODRIGUEZ ESTRADA","departamento":"VENTAS","puesto":"CHOFER","fechaSerial":30342,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10655","nombre":"JUAN CARLOS MOREIRA LOZANO","departamento":"PLANTA 3","puesto":"SUPERVISOR DE RECIBO","fechaSerial":27721,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"10678","nombre":"JUAN ANTONIO VILLANUEVA VELAZCO","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":25605,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10684","nombre":"INES MARCELINO GARZA CASTRO","departamento":"PLANTA 3","puesto":"OPERADOR DE MONTACARGAS","fechaSerial":30226,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10691","nombre":"JUAN FRANCISCO GUILLERMO DIAZ","departamento":"PLANTA 3","puesto":"OPERADOR DE MONTACARGAS","fechaSerial":31806,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10730","nombre":"LUIS ARMANDO HERNANDEZ SANCHEZ","departamento":"PLANTA 3","puesto":"LIDER DE ARMADO","fechaSerial":31716,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10769","nombre":"LUIS ALBERTO GALVAN MARTINEZ","departamento":"PLANTA 1","puesto":"OPERADOR DE MAQUINA","fechaSerial":29608,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10900","nombre":"JUAN CARLOS GARCIA OLARTE","departamento":"PLANTA 3","puesto":"OPERADOR DE ESCURRIDO","fechaSerial":28946,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10975","nombre":"ALVARO IBARRA TOVAR","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":24134,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11035","nombre":"CARLOS ALBERTO TORRES OLIVARES","departamento":"PLANTA 3","puesto":"OPERADOR DE MONTACARGAS","fechaSerial":30477,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11100","nombre":"MAYCO DURON GALAVIZ","departamento":"PLANTA 1","puesto":"OPERADOR DE MAQUINA","fechaSerial":33293,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11106","nombre":"CARLOS ALFONSO RAMIREZ SOTO","departamento":"PLANTA 2","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":28251,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"11118","nombre":"DANIEL LINO RANGEL MUÑOZ","departamento":"VENTAS","puesto":"CHOFER","fechaSerial":24738,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11131","nombre":"HUMBERTO DAVILA RIOJAS","departamento":"PLANTA 1","puesto":"SUPERVISOR DE CEDIS","fechaSerial":32220,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11158","nombre":"DAVID GUSTAVO LOPEZ GERONIMO","departamento":"VENTAS","puesto":"CHOFER","fechaSerial":27380,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11204","nombre":"JOSUE EMMANUEL VILLALOBOS RIVERA","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":30958,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11229","nombre":"HECTOR MANUEL AGUAYO MORENO","departamento":"PLANTA 2","puesto":"SUPERVISOR DE TOOLING","fechaSerial":30198,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11266","nombre":"JUAN FRANCISCO SANCHEZ VAZQUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":31694,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11271","nombre":"MIGUEL TRINIDAD GUERRA","departamento":"PLANTA 2","puesto":"LIDER DE CORTE A MEDIDA","fechaSerial":28499,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11274","nombre":"JOSE ANTONIO ESPINOZA MANCHA","departamento":"PLANTA 1","puesto":"LIDER DE MOLINO","fechaSerial":28074,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11291","nombre":"ARMIN ALEJANDRO CASTILLO RAMIREZ","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":31192,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11318","nombre":"JUAN MARTINEZ GOMEZ","departamento":"PLANTA 6","puesto":"INSPECTOR DE CALIDAD","fechaSerial":30142,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"11331","nombre":"JUAN PEDRO MARTINEZ MENDOZA","departamento":"PLANTA 1","puesto":"OPERADOR DE PINTURA","fechaSerial":25864,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11393","nombre":"CESAR ARTURO SANCHEZ ARREDONDO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":27057,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11421","nombre":"JUAN HECTOR GARCIA REYES","departamento":"CORPORATIVO","puesto":"AUXILIAR DE COMPRAS","fechaSerial":33163,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11437","nombre":"EMILIO ANAMAEL GARCIA PUENTE","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30031,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11444","nombre":"BRAULIO JESUS RODRIGUEZ GARCIA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":32618,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11481","nombre":"EFRAIN CONTRERAS LEIJA","departamento":"PLANTA 3","puesto":"OPERADOR DE TOOLING","fechaSerial":25945,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11486","nombre":"SAMUEL LOPEZ CEPEDA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":29424,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11490","nombre":"HECTOR GERARDO BUSTOS GALAVIZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":27381,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11493","nombre":"JHOVANY BLADIMIR LOPEZ GARCIA","departamento":"PLANTA 2","puesto":"OPERADOR DE HABILITADO","fechaSerial":34050,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11497","nombre":"RICARDO ESQUIVEL GARCIA","departamento":"PLANTA 2","puesto":"SUPERVISOR DE TOOLING","fechaSerial":26552,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11502","nombre":"ARNULFO SILVA GONZALEZ","departamento":"VENTAS","puesto":"CHOFER","fechaSerial":30516,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11533","nombre":"JULIAN ALBERTO SANCHEZ SALINAS","departamento":"PLANTA 2","puesto":"SUPERVISOR DE CALIDAD","fechaSerial":33473,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"11578","nombre":"MANUEL MONTAÑEZ DAVILA","departamento":"PLANTA 3","puesto":"OPERADOR DE GALVANIZADO","fechaSerial":31657,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11588","nombre":"OMAR ALEJANDRO GUERRERO OLVEDA","departamento":"PLANTA 2","puesto":"OPERADOR DE HABILITADO","fechaSerial":33540,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11612","nombre":"VICTOR DANIEL NAVARRO AVILA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":31045,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11616","nombre":"HORLANDO MARTINEZ MUÑOZ","departamento":"PLANTA 2","puesto":"OPERADOR DE PANTOGRAFO","fechaSerial":31777,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11680","nombre":"ESMIRO ENRIQUE IRUEGAS MACIAS","departamento":"PLANTA 3","puesto":"OPERADOR DE GALVANIZADO","fechaSerial":33199,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11691","nombre":"SONIA MARCELA AGUILAR ALVAREZ","departamento":"CORPORATIVO","puesto":"GERENTE SENIOR SERVICIO AL CLIENTE","fechaSerial":30777,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11706","nombre":"JOSE MANUEL MARTINEZ REYES","departamento":"PLANTA 3","puesto":"LIDER DE GALVANIZADO","fechaSerial":33220,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11714","nombre":"JOSE URIEL GALINDO HERNANDEZ","departamento":"PLANTA 3","puesto":"INSPECTOR DE CALIDAD","fechaSerial":32728,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"11725","nombre":"CESAR DAVID GONZALEZ MANCHA","departamento":"PLANTA 3","puesto":"OPERADOR DE GALVANIZADO","fechaSerial":32859,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11731","nombre":"CLEMENTE MORALES SANCHEZ","departamento":"PLANTA 2","puesto":"INSPECTOR DE CALIDAD","fechaSerial":34353,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"11738","nombre":"JUAN EMILIO IRACHETA SANDOVAL","departamento":"PLANTA 3","puesto":"OPERADOR DE ACIDOS","fechaSerial":28895,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11785","nombre":"JOSE ANTONIO MORALES GRADO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34399,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11792","nombre":"JORGE LUIS GARCIA CHAIREZ","departamento":"PLANTA 1","puesto":"INSPECTOR DE CALIDAD","fechaSerial":34578,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"11800","nombre":"JORGE ALBERTO TRUJILLO SANCHEZ","departamento":"PLANTA 2","puesto":"INSPECTOR DE CALIDAD","fechaSerial":32671,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"11803","nombre":"CARLOS ANTONIO BERNAL RODRIGUEZ","departamento":"PLANTA 1","puesto":"SUPERVISOR DE MATERIALES","fechaSerial":34702,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10718","nombre":"GLORIA ROSALVA GUIA PARTIDA","departamento":"PLANTA 1","puesto":"LIMPIEZA","fechaSerial":26577,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10289","nombre":"FRANCISCO MANUEL BANDA ESPINOZA","departamento":"PLANTA 1","puesto":"OPERADOR DE MONTACARGAS CEDIS","fechaSerial":27890,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10859","nombre":"JUAN ANTONIO CORTES ENRIQUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE PANTOGRAFO","fechaSerial":27460,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11363","nombre":"JOEL ISRRAEL DE LA CRUZ NAVARRO","departamento":"PLANTA 2","puesto":"MATERIALISTA","fechaSerial":33362,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11125","nombre":"JOSE LUIS AREVALO PADILLA","departamento":"PLANTA 3","puesto":"OPERADOR DE GALVANIZADO","fechaSerial":29204,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11140","nombre":"JOSE FERNANDO REYES SALDAÑA","departamento":"PLANTA 2","puesto":"OPERADOR DE CORTE","fechaSerial":32804,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11783","nombre":"ROGELIO AGUILAR DIAZ","departamento":"PLANTA 1","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":33176,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11495","nombre":"ARNOLDO GAYTAN GONZALEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE TOOLING","fechaSerial":28213,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11655","nombre":"MARIO ALAN PINEDA GARCIA","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":33335,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11743","nombre":"ISRAEL DAUMERI LIZCANO GUERRA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30557,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11739","nombre":"ALFONSO MONTAÑEZ DE LA CRUZ","departamento":"PLANTA 1","puesto":"OPERADOR DE CORTE","fechaSerial":32055,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11817","nombre":"ENRIQUE HERNANDEZ ROBLES","departamento":"VENTAS","puesto":"CHOFER","fechaSerial":25553,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11828","nombre":"JOSE ELIAS MORENO LEIJA","departamento":"PLANTA 2","puesto":"OPERADOR DE MONTACARGAS","fechaSerial":34356,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11833","nombre":"JUAN ARMANDO GOVEA MALDONADO","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":33678,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11866","nombre":"LUIS ARTURO MARTINEZ REYES","departamento":"PLANTA 1","puesto":"LIDER DE MAQUINA","fechaSerial":34948,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11869","nombre":"JESUS ANTONIO GRADO RODRIGUEZ","departamento":"PLANTA 1","puesto":"LIDER DE MAQUINA","fechaSerial":35229,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11877","nombre":"NESTOR DANIEL DELGADO ARMENDARIZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":33914,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11884","nombre":"DIEGO DANIEL REYNA LUCIO","departamento":"PLANTA 3","puesto":"OPERADOR DE GALVANIZADO","fechaSerial":33921,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11908","nombre":"JUAN ESTEBAN HERNANDEZ SILVA","departamento":"PLANTA 1","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":28677,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11916","nombre":"RODRIGO RODRIGUEZ TIJERINA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34935,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11921","nombre":"JUAN ANTONIO CHARLES GARIBAY","departamento":"PLANTA 1","puesto":"LIMPIEZA","fechaSerial":25698,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11935","nombre":"WILVER AARON RODRIGUEZ BUENO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":32014,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11940","nombre":"GERARDO VALADEZ CASTRO","departamento":"PLANTA 1","puesto":"INSPECTOR DE CALIDAD","fechaSerial":34660,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"11943","nombre":"JAVIER GARCIA OLARTE","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":26999,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11967","nombre":"CRISTIAN HOMERO GARCIA VILLARREAL","departamento":"PLANTA 1","puesto":"OPERADOR DE MONTACARGAS CEDIS","fechaSerial":35383,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11972","nombre":"JUAN ABRAHAM FLORES CORTEZ","departamento":"PLANTA 3","puesto":"OPERADOR DE GALVANIZADO","fechaSerial":29951,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11981","nombre":"ALANN HUMBERTO SALAZAR VELAZQUEZ","departamento":"PLANTA 3","puesto":"SUPERVISOR DE MANTENIMIENTO","fechaSerial":34209,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11994","nombre":"JUAN BENITO RODRIGUEZ TORRES","departamento":"PLANTA 3","puesto":"OPERADOR DE DESARMADO","fechaSerial":31194,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12000","nombre":"CESAR EDUARDO CARRANZA CONTRERAS","departamento":"PLANTA 1","puesto":"LIDER DE MOLINO","fechaSerial":33486,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12045","nombre":"JOSE MANUEL CASTILLO AGUAYO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":36392,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12049","nombre":"JULIO ISMAEL PEREZ CONTRERAS","departamento":"PLANTA 2","puesto":"INSPECTOR DE CALIDAD","fechaSerial":36358,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"12052","nombre":"ARNOLDO JIMENEZ SAMANIEGO","departamento":"PLANTA 2","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":34666,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"12048","nombre":"FRANCISCO JAVIER SILVA GARCIA","departamento":"PLANTA 1","puesto":"OPERADOR DE PINTURA","fechaSerial":30649,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12067","nombre":"FERMIN ZAPATA RODRIGUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE CORTE","fechaSerial":29386,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12070","nombre":"JESUS ANTONIO REYES FLORES","departamento":"PLANTA 6","puesto":"AUXILIAR DE INGENIERIA","fechaSerial":35593,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12071","nombre":"JOSUE ALEJANDRO REYES FLORES","departamento":"PLANTA 2","puesto":"AUXILIAR DE INGENIERIA","fechaSerial":36066,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12072","nombre":"FRANCISCO JAVIER RIVERA ZUÑIGA","departamento":"PLANTA 1","puesto":"CHOFER DE TORTONETA","fechaSerial":33541,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12082","nombre":"EDGAR ULISES RAMOS VAZQUEZ","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":36203,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12093","nombre":"ISAI IRAM GRIJALVA ZAPATA","departamento":"PLANTA 3","puesto":"PREPARADOR DE MATERIALES","fechaSerial":34667,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12099","nombre":"LUIS JAHAZIEL SANTIAGO FLORES","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":36769,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12124","nombre":"ISAAC ISRAEL HERNANDEZ HERNANDEZ","departamento":"PLANTA 2","puesto":"CHOFER DE TORTONETA","fechaSerial":36076,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12140","nombre":"LUIS FIDENCIO MORALES GRADO","departamento":"PLANTA 1","puesto":"LIDER DE MOLINO","fechaSerial":33880,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12145","nombre":"JOSE DANIEL HERNANDEZ TOVAR","departamento":"PLANTA 3","puesto":"OPERADOR DE GRUA","fechaSerial":29058,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12146","nombre":"DANIEL SANCHEZ GARIVAY","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":35008,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12148","nombre":"ANTONIO DE JESUS OLARTE GARCIA","departamento":"PLANTA 1","puesto":"OPERADOR DE MAQUINA","fechaSerial":33735,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12157","nombre":"JORGE ELIUD NAVARRO SANDOVAL","departamento":"CORPORATIVO","puesto":"CHOFER","fechaSerial":30500,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12159","nombre":"LUIS ALBERTO GONZALEZ QUINTERO","departamento":"PLANTA 3","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":29487,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12162","nombre":"FRANCISCO DOMINGUEZ ZUÑIGA","departamento":"PLANTA 3","puesto":"OPERADOR DE ESCURRIDO","fechaSerial":36697,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12164","nombre":"FRANCISCO ALI ALVARADO SOTO","departamento":"PLANTA 2","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":35310,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12181","nombre":"JUAN GUSTAVO TOVAR OVALLE","departamento":"CORPORATIVO","puesto":"SUPERVISOR DE SEGURIDAD INDUSTRIAL CORPORATIVO","fechaSerial":32817,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12013","nombre":"JESUS ALEJANDRO ZERTUCHE LOZANO","departamento":"CORPORATIVO","puesto":"GERENTE ADMINISTRATIVO","fechaSerial":35700,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12128","nombre":"BLADIMIR CALIX OLAN","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":29046,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12195","nombre":"RICARDO BALDERRAMA ARZAGA","departamento":"VENTAS","puesto":"GERENTE DE VENTAS","fechaSerial":29854,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12330","nombre":"JOSE JUAN AGUILERA GOMEZ","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":30902,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12261","nombre":"HERSON RAMOS RODRIGUEZ","departamento":"PLANTA 2","puesto":"COORDINADOR DE SEGURIDAD SOCIAL","fechaSerial":34285,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12497","nombre":"JOSE JOSBAL CUEVAS MARTINEZ","departamento":"VENTAS","puesto":"COORDINADOR DE COMUNICACION Y MARKETING","fechaSerial":30311,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12500","nombre":"JOSE FERNANDO SANCHEZ COLUNGA","departamento":"CORPORATIVO","puesto":"GERENTE DE TOOLING","fechaSerial":30132,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10024","nombre":"JOSE SANTOS CASTILLO GALAVIZ","departamento":"PLANTA 2","puesto":"GERENTE DE PRODUCCION","fechaSerial":27130,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10073","nombre":"FRANCISCO RODRIGUEZ ROMO","departamento":"PLANTA 2","puesto":"GERENTE DE INGENIERIA","fechaSerial":26140,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10087","nombre":"JUAN JESUS REYES SALAS","departamento":"VENTAS","puesto":"GERENTE DE VENTAS","fechaSerial":26428,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10115","nombre":"JORGE ZAPATA SILVA","departamento":"CORPORATIVO","puesto":"GERENTE DE TOOLING","fechaSerial":25506,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10301","nombre":"MISAEL TERRAZAS DE LA CRUZ","departamento":"CORPORATIVO","puesto":"DIRECTOR DE OPERACIONES","fechaSerial":29684,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10359","nombre":"MARTHA PATRICIA ZERTUCHE QUINTERO","departamento":"CORPORATIVO","puesto":"DIRECTOR DE FINANZAS","fechaSerial":24755,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10469","nombre":"ADRIANA GUADALUPE HERNANDEZ MUÑOZ","departamento":"CORPORATIVO","puesto":"SUBDIRECTOR DE TI","fechaSerial":28795,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10692","nombre":"SAMUEL CARREON MORENO","departamento":"PLANTA 1","puesto":"GERENTE DE MANTENIMIENTO","fechaSerial":26976,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10700","nombre":"OMAR DE JESUS MEDRANO RIVERA","departamento":"CORPORATIVO","puesto":"SUBDIRECTOR DE COMPRAS","fechaSerial":30670,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10708","nombre":"BERTHA ELIZABETH CARRILLO SAUCEDO","departamento":"CORPORATIVO","puesto":"SUBDIRECTOR DE RECURSOS HUMANOS","fechaSerial":30198,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10789","nombre":"JUANA GARCIA GUERRERO","departamento":"VENTAS","puesto":"GERENTE DE VENTAS","fechaSerial":26108,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10848","nombre":"EMMANUEL MARTINEZ LARA","departamento":"PLANTA 2","puesto":"GERENTE DE INGENIERIA","fechaSerial":30943,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10852","nombre":"ANGEL GUILLERMO CASTILLO MORALES","departamento":"CORPORATIVO","puesto":"SUBDIRECTOR DE CALIDAD","fechaSerial":30732,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10879","nombre":"NORBERTO MONTELONGO ESCOBEDO","departamento":"PLANTA 6","puesto":"SUBDIRECTOR COMERCIAL","fechaSerial":30666,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10928","nombre":"OSVALDO DE LA GARZA ANCIRA","departamento":"CORPORATIVO","puesto":"SUBDIRECTOR DE OPERACIONES","fechaSerial":31361,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11058","nombre":"SANTIAGO GUERRA TORRES","departamento":"CORPORATIVO","puesto":"GERENTE SENIOR DE AUDITORIA","fechaSerial":30332,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11116","nombre":"LUIS RICARDO GALINDO ORTIZ","departamento":"VENTAS","puesto":"GERENTE DE VENTAS","fechaSerial":31505,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11289","nombre":"EDUARDO JAVIER GONZALEZ RODRIGUEZ","departamento":"VENTAS","puesto":"SUBDIRECTOR COMERCIAL","fechaSerial":30400,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11558","nombre":"CYNTHIA CELINA SILVA MERCADO","departamento":"CORPORATIVO","puesto":"SUBDIRECTOR DE CONTABILIDAD","fechaSerial":31590,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11756","nombre":"JOSE ROMAN FERMIN GAZCA","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":28819,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11017","nombre":"MIGUEL ANGEL ZERTUCHE LOZANO","departamento":"VENTAS","puesto":"DIRECTOR COMERCIAL MEXICO Y AMERICA LATINA","fechaSerial":32786,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11804","nombre":"PATRICIA ZERTUCHE LOZANO","departamento":"CORPORATIVO","puesto":"GERENTE ADMINISTRATIVO","fechaSerial":34049,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11353","nombre":"JUAN ANTONIO BAUTISTA GALVAN","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":26234,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11630","nombre":"MAYRA PATRICIA SUAREZ GARCIA","departamento":"CORPORATIVO","puesto":"GERENTE SENIOR DE CREDITO Y COBRANZA","fechaSerial":32053,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11340","nombre":"FERNANDO EMMANUEL BARCO RODRIGUEZ","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":31485,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11445","nombre":"ARMANDO BUENTELLO FLORES","departamento":"CORPORATIVO","puesto":"GERENTE DE PLANEACION Y MATERIALES","fechaSerial":32430,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11553","nombre":"LOT GILBERTO RESENDIZ VELARDE","departamento":"PLANTA 6","puesto":"ASESOR DE VENTAS","fechaSerial":31355,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11986","nombre":"DULCE ANAHI ALVAREZ ALBIZO","departamento":"PLANTA 1","puesto":"GERENTE DE CALIDAD","fechaSerial":33674,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11426","nombre":"URIEL EULOGIO RAMOS GARCIA","departamento":"PLANTA 1","puesto":"COORDINADOR DE PRODUCCION","fechaSerial":33845,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11548","nombre":"REYNALDO LARA NEIRA","departamento":"PLANTA 3","puesto":"GERENTE DE PRODUCCION","fechaSerial":31880,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11973","nombre":"CRUZ IDALIA OROZCO CASTAN","departamento":"CORPORATIVO","puesto":"GERENTE DE CONTABILIDAD","fechaSerial":31900,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12135","nombre":"CLAUDIA LIZETH GOMEZ SANCHEZ","departamento":"CORPORATIVO","puesto":"COORDINADOR DE NOMINAS","fechaSerial":30253,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11344","nombre":"JOSE JUAN ACEVEDO DIAZ","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":29295,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12040","nombre":"DANIELA ESTEFANIA GUADARRAMA HERNANDEZ","departamento":"PLANTA 2","puesto":"COORDINADOR DE INGENIERIA","fechaSerial":34728,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12303","nombre":"JUAN RODOLFO OROPEZA CANTU","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":34120,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12059","nombre":"ESMERALDA MARQUEZ RESENDIZ","departamento":"VENTAS","puesto":"GERENTE DE VENTAS","fechaSerial":31238,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12300","nombre":"CARLOS EDUARDO MARTINEZ MOSQUEDA","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":34531,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12304","nombre":"SERGIO EDUARDO MARTINEZ MARTINEZ","departamento":"CORPORATIVO","puesto":"GERENTE DE SISTEMAS","fechaSerial":30778,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12347","nombre":"EDUARDO BALDEMAR VALDEZ RUBIO","departamento":"CORPORATIVO","puesto":"GERENTE SENIOR INGENIERIA INDUSTRIAL","fechaSerial":33461,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11049","nombre":"LUIS ANGEL GARZA GARCIA","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":29129,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11734","nombre":"HILDA GLADIS DURAN RODRIGUEZ","departamento":"VENTAS","puesto":"AUXILIAR DE VENTAS","fechaSerial":25977,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12056","nombre":"MARIA BELEM RODRIGUEZ ESPINOZA","departamento":"PLANTA 1","puesto":"AUXILIAR DE SERVICIO MEDICO","fechaSerial":31825,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12594","nombre":"LUIS ROGELIO MARQUEZ ALVARADO","departamento":"PLANTA 2","puesto":"OPERADOR DE CORTE","fechaSerial":31680,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12598","nombre":"JULIO CESAR VALADEZ OROZCO","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":37771,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10069","nombre":"CLEMENTE MORALES RIOS","departamento":"PLANTA 1","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":25355,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"10412","nombre":"HECTOR JAVIER GARCIA MARTINEZ","departamento":"PLANTA 3","puesto":"SUPERVISOR DE RECIBO","fechaSerial":24323,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"12111","nombre":"ENRIQUE ELISEO GARCIA CASTILLO","departamento":"PLANTA 3","puesto":"INSPECTOR DE CALIDAD","fechaSerial":35688,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"12114","nombre":"JORGE ALBERTO VAZQUEZ MORALES","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":24985,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12116","nombre":"OMAR ALFONSO HERNANDEZ SANCHEZ","departamento":"PLANTA 3","puesto":"OPERADOR DE ESCURRIDO","fechaSerial":33113,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12152","nombre":"REGINALDO DAVILA BARBOZA","departamento":"PLANTA 6","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":25344,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"12177","nombre":"JORDY ALEJANDRO GUILLERMO DIAZ","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":37045,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12194","nombre":"PEDRO ALBERTO DE LA ROSA BARRIENTOS","departamento":"PLANTA 1","puesto":"OPERADOR DE MONTACARGAS","fechaSerial":29190,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12105","nombre":"JONATHAN GAMALIEL DE LOS ANGELES ACOSTA","departamento":"PLANTA 3","puesto":"OPERADOR DE DESARMADO","fechaSerial":36522,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12218","nombre":"EDGAR ALEXANDER NAVA GLORIA","departamento":"PLANTA 1","puesto":"LIDER DE MAQUINA","fechaSerial":35685,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12231","nombre":"CRISTIAN RAMIRO FERMIN DIAZ","departamento":"PLANTA 3","puesto":"OPERADOR DE ESCURRIDO","fechaSerial":36870,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12233","nombre":"REFUGIO HERNANDEZ ESCOBEDO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":33291,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12245","nombre":"LEOBARDO GABRIEL CONTRERAS HERNANDEZ","departamento":"PLANTA 1","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":33478,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11408","nombre":"JUAN ALBERTO SANCHEZ MARTINEZ","departamento":"PLANTA 1","puesto":"CHOFER DE TORTONETA","fechaSerial":30818,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12280","nombre":"MARCO AURELIO LOREDO ALDERETE","departamento":"PLANTA 1","puesto":"SUPERVISOR DE MANTENIMIENTO","fechaSerial":34852,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12284","nombre":"JESUS FRANCISCO SIFUENTES TAVARES","departamento":"PLANTA 3","puesto":"AUDITOR DE CALIDAD","fechaSerial":35422,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10309","nombre":"MARIANO DIAZ LEYVA","departamento":"PLANTA 2","puesto":"OPERADOR DE HABILITADO","fechaSerial":28969,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10013","nombre":"ALBERTO BARAJAS SILVA","departamento":"PLANTA 1","puesto":"COORDINADOR DE PRODUCCION","fechaSerial":25521,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"10802","nombre":"HECTOR REYES CASTILLO","departamento":"PLANTA 6","puesto":"MATERIALISTA","fechaSerial":32639,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10395","nombre":"HUMBERTO REYNA LUCIO","departamento":"PLANTA 3","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":30400,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"10833","nombre":"HILARIO RANGEL HERNANDEZ","departamento":"PLANTA 1","puesto":"COORDINADOR DE MATERIALES","fechaSerial":28078,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"11985","nombre":"GILBERTO LAZALDE MARTINEZ","departamento":"PLANTA 6","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":30660,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"10076","nombre":"JOSE ADOLFO RODRIGUEZ ZAPATA","departamento":"PLANTA 2","puesto":"OPERADOR DE PANTOGRAFO","fechaSerial":28086,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10126","nombre":"BLAS MORENO ZAPATA","departamento":"PLANTA 1","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":25106,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"10315","nombre":"CARLOS ALBERTO REYNA RODRIGUEZ","departamento":"PLANTA 3","puesto":"LIDER DE ARMADO","fechaSerial":29342,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10355","nombre":"GERARDO RANGEL RODRIGUEZ","departamento":"PLANTA 1","puesto":"LIDER DE MAQUINA NIVELADORA","fechaSerial":28401,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10521","nombre":"ISMAEL ZUÑIGA GARCIA","departamento":"PLANTA 1","puesto":"LIDER DE MOLINO","fechaSerial":28053,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"10573","nombre":"ENRIQUE JAVIER ROJAS DELGADO","departamento":"PLANTA 1","puesto":"SUPERVISOR DE CEDIS","fechaSerial":29979,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10636","nombre":"ESTEBAN EULALIO LOPEZ RODRIGUEZ","departamento":"PLANTA 1","puesto":"LIDER DE MAQUINADOS TOOLING","fechaSerial":28457,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10754","nombre":"ALAN MERCADO FORTUNA","departamento":"PLANTA 3","puesto":"LIDER DE GALVANIZADO","fechaSerial":32498,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11386","nombre":"FIDENCIO RIOS VILLANUEVA","departamento":"PLANTA 1","puesto":"LIDER DE MAQUINA","fechaSerial":27229,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12328","nombre":"JUAN ARTURO CAMACHO RAMIREZ","departamento":"PLANTA 2","puesto":"OPERADOR GENERAL","fechaSerial":28739,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12349","nombre":"JESUS ALFONSO DE LA ROSA BARRIENTOS","departamento":"CORPORATIVO","puesto":"COORDINADOR DE CONTROL VEHICULAR","fechaSerial":30186,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12359","nombre":"JUAN ELI MENDOZA MORALES","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":33231,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11522","nombre":"JESUS FELIPE PADILLA MORALES","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30216,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12372","nombre":"JUAN DE DIOS RODRIGUEZ ALVIZO","departamento":"PLANTA 1","puesto":"MATERIALISTA","fechaSerial":36335,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"10826","nombre":"EDGAR EDUARDO GARCIA RIVAS","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30377,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12408","nombre":"MIGUEL ANGEL ESCAMILLA CRUZ","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":33431,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12416","nombre":"JUAN ANTONIO QUIROZ RAMOS","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":31191,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12457","nombre":"JULIA ISABEL TORRES LUGO","departamento":"PLANTA 1","puesto":"INGENIERO INDUSTRIAL","fechaSerial":33190,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12461","nombre":"FERMIN EDUARDO MARTINEZ TREVIÑO","departamento":"PLANTA 6","puesto":"AUXILIAR DE INGENIERIA","fechaSerial":33796,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12478","nombre":"MARIA DE LA LUZ ROMO GAYTAN","departamento":"PLANTA 2","puesto":"LIMPIEZA","fechaSerial":31607,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12482","nombre":"HERNAN HERNANDEZ GAYTAN","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34820,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12484","nombre":"LUCIO OLMEDO JIMENEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":33585,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12505","nombre":"JOSE DE JESUS RODRIGUEZ MUÑOZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37582,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"11975","nombre":"JESUS GABRIEL MORENO SALAZAR","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":35025,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"11987","nombre":"OSVALDO RAMIRO DELGADILLO IBARRA","departamento":"PLANTA 2","puesto":"AUXILIAR DE INGENIERIA","fechaSerial":31629,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12516","nombre":"DANIELA SOFIA GUERRA DIAZ","departamento":"CORPORATIVO","puesto":"COORDINADOR DE COMERCIO EXTERIOR","fechaSerial":35928,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12525","nombre":"OVED ISAI RIVERA MATA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":28835,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12530","nombre":"DANIEL SANCHEZ VAZQUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE HABILITADO","fechaSerial":32128,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12545","nombre":"EDUARDO CLEMENTE GARCIA AGUILLON","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30928,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12556","nombre":"SONIA MARGARITA RAMOS GUZMAN","departamento":"PLANTA 2","puesto":"LIMPIEZA","fechaSerial":25964,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12584","nombre":"VICTOR AZAEL RIOS CASTILLO","departamento":"CORPORATIVO","puesto":"AUXILIAR DE SERVICIO AL CLIENTE","fechaSerial":37140,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12575","nombre":"ERNESTO GAYTAN GALINDO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":25517,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12592","nombre":"JESUS EMMANUEL HERNANDEZ CASTILLO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":32972,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12607","nombre":"VIOLETA ALEJANDRA DE HOYOS MARTINEZ","departamento":"PLANTA 2","puesto":"COORDINADOR DE INGENIERIA","fechaSerial":31519,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12612","nombre":"MARCO ANTONIO BERNAL RODRIGUEZ","departamento":"PLANTA 1","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL CUBRE DESCANSOS","fechaSerial":36485,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12615","nombre":"OMAR ISAI SANTOS ALONSO","departamento":"PLANTA 6","puesto":"OPERADOR DE PAILERIA","fechaSerial":31543,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12616","nombre":"JOSE TRINIDAD ROCHA ESPINOZA","departamento":"VENTAS","puesto":"CHOFER","fechaSerial":29725,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12573","nombre":"SERGIO HERNANDEZ CARRIZALES","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":25404,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12553","nombre":"HECTOR OMAR PERALES CARREON","departamento":"PLANTA 6","puesto":"OPERADOR DE PAILERIA","fechaSerial":30918,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12206","nombre":"HECTOR JAVIER SILVA CASTILLO","departamento":"PLANTA 1","puesto":"OPERADOR DE TOOLING","fechaSerial":27994,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12153","nombre":"PORFIRIO SANCHEZ RAMIREZ","departamento":"PLANTA 6","puesto":"SUPERVISOR DE PRODUCCION","fechaSerial":24365,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"12618","nombre":"OSWALDO CANTU LOBOS","departamento":"PLANTA 3","puesto":"SUPERVISOR DE TOOLING","fechaSerial":32756,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12623","nombre":"IRMA MENDEZ SOLIS","departamento":"CORPORATIVO","puesto":"LIMPIEZA ESPECIAL","fechaSerial":22680,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12705","nombre":"MAURO ALBERTO GONZALEZ SIFUENTES","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":28506,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12702","nombre":"JUAN GERARDO HERNANDEZ TAFOYA","departamento":"PLANTA 3","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":35792,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12720","nombre":"LORENA GUADALUPE MENDIOLA MEDRANO","departamento":"CORPORATIVO","puesto":"COORDINADOR DE COSTOS","fechaSerial":35877,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12750","nombre":"CARLOS EDUARDO RODRIGUEZ ROJAS","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":35613,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12767","nombre":"JESUS MARIO MANCHA CAMPOS","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37298,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12756","nombre":"FRANCISCO RAUL RODRIGUEZ CAMACHO","departamento":"PLANTA 1","puesto":"LIDER DE MAQUINA","fechaSerial":37406,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12768","nombre":"JUAN CARLOS PADILLA CARRIZALES","departamento":"PLANTA 3","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":28173,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12769","nombre":"DANIEL IRAM IBARRA RODRIGUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30167,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12786","nombre":"JORGE ARTURO AROCHA PONCE","departamento":"PLANTA 1","puesto":"OPERADOR DE MAQUINA","fechaSerial":36969,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12783","nombre":"RAUL HERNAN HERNANDEZ SEGURA","departamento":"PLANTA 2","puesto":"OPERADOR DE PANTOGRAFO","fechaSerial":36554,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12806","nombre":"JUAN PABLO PEREZ GUTIERREZ","departamento":"PLANTA 2","puesto":"INSPECTOR DE SEGURIDAD","fechaSerial":31624,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12823","nombre":"JESUS PABLO RODRIGUEZ CAMACHO","departamento":"PLANTA 2","puesto":"OPERADOR DE ROBOT","fechaSerial":36006,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12817","nombre":"IRVIN AARON ROBLEDO REZA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37898,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12814","nombre":"ANGEL FERNANDO VILLALOBOS GONZALEZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36122,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12807","nombre":"JORGE CARLOS QUIÑONES RODRIGUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37506,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12810","nombre":"FERNANDO LOPEZ TAKYN","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":35569,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12828","nombre":"JOHANA ITZEL MALDONADO CERVANTES","departamento":"PLANTA 1","puesto":"AUXILIAR DE COMPRAS","fechaSerial":36697,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12831","nombre":"OSCAR ADRIAN MORENO LOPEZ","departamento":"PLANTA 2","puesto":"INSPECTOR DE CALIDAD","fechaSerial":35060,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"12839","nombre":"VICTOR FERNANDO FARIS FLORES","departamento":"VENTAS","puesto":"GERENTE DE VENTAS","fechaSerial":32276,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12850","nombre":"JOEL IGNACIO SIERRA CASTRO","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":31702,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12876","nombre":"NESTOR AZAEL LOYOLA RAMOS","departamento":"CORPORATIVO","puesto":"COORDINADOR DE HARDWARE","fechaSerial":30188,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12880","nombre":"UBALDO ROMO CASTILLO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":31548,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12901","nombre":"DAVID DIRCEO TORRES ESCOBEDO","departamento":"PLANTA 1","puesto":"OPERADOR DE MAQUINADOS","fechaSerial":35062,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12903","nombre":"JOSE DANIEL MONTOYA FAVELA","departamento":"PLANTA 1","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":32482,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12918","nombre":"RICARDO OLVEDA FLORES","departamento":"PLANTA 1","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":32205,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12917","nombre":"JULIO ARTEMIO ALANIZ ZAPATA","departamento":"PLANTA 2","puesto":"GUARDIA DE SEGURIDAD CUBRE DESCANSOS PLANTA 1 2 Y 3","fechaSerial":25620,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12915","nombre":"SANDRA BERENICE SANCHEZ ESPINOZA","departamento":"PLANTA 3","puesto":"ALMACENISTA","fechaSerial":35181,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12919","nombre":"HABID ALEJANDRO ORTIZ LOPEZ","departamento":"PLANTA 2","puesto":"SUPERVISOR DE MANTENIMIENTO","fechaSerial":34395,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12921","nombre":"ISMAEL ROJAS HERNANDEZ","departamento":"PLANTA 1","puesto":"INSPECTOR DE SEGURIDAD","fechaSerial":29077,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12935","nombre":"ALFONSO COLUNGA MARTINEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA ROBOT","fechaSerial":25432,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12938","nombre":"JESUS ISAEL HERNANDEZ HERNANDEZ","departamento":"CORPORATIVO","puesto":"LIMPIEZA ESPECIAL","fechaSerial":31817,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12958","nombre":"ANDRES DUARTE LOPEZ","departamento":"PLANTA 1","puesto":"INSPECTOR DE CALIDAD","fechaSerial":36071,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"12949","nombre":"JORGE ARMANDO ESCOBEDO VAZQUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30123,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12951","nombre":"JESUS EDUARDO RODRIGUEZ GUERRERO","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34545,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12963","nombre":"FELIPE DE JESUS POSADA CORDERO","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":26334,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12960","nombre":"GABRIEL ARMANDO VILLANUEVA PARTIDA","departamento":"PLANTA 2","puesto":"CAPTURISTA","fechaSerial":34850,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12971","nombre":"ISRAEL HERNANDEZ GARCIA","departamento":"PLANTA 2","puesto":"OPERADOR DE MONTACARGAS","fechaSerial":30705,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"12974","nombre":"LESSLIE DEL CARMEN GONZALEZ SALINAS","departamento":"CORPORATIVO","puesto":"AUXILIAR DE SERVICIO A CLIENTE","fechaSerial":34531,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"12973","nombre":"DANIEL ALEJANDRO FLORES ZARAZUA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37947,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12979","nombre":"JUAN GUADALUPE MARTINEZ REYNA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":35671,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12986","nombre":"HERIBERTO ONTIVEROS RODRIGUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37602,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"12997","nombre":"JUAN LUIS HERNANDEZ GARCIA","departamento":"PLANTA 2","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":34428,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13030","nombre":"FERNANDO DIAZ DE LEON RIVERA","departamento":"PLANTA 2","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":27030,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13025","nombre":"RAUL OMAR HIDALGO VILLARREAL","departamento":"PLANTA 2","puesto":"AUXILIAR DE INGENIERIA","fechaSerial":28897,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13043","nombre":"JESUS ORLANDO MORENO GALLEGOS","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":31361,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13066","nombre":"JESUS LEOBARDO ROMO GARCIA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34961,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13082","nombre":"CESAR DE JESUS RAMIREZ TREVIÑO","departamento":"VENTAS","puesto":"AUXILIAR DE VENTAS","fechaSerial":33711,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13090","nombre":"JONATHAN ALEJANDRO ESTRADA GUTIERREZ","departamento":"PLANTA 3","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":33853,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13088","nombre":"ERNESTO RODRIGUEZ HINOJOSA","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":25878,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13110","nombre":"HECTOR MARCELINO CAMPOS GAYTAN","departamento":"PLANTA 2","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":37121,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13119","nombre":"PAOLA ALEJANDRA BANDA GAYTAN","departamento":"VENTAS","puesto":"PROJECT COORDINATOR","fechaSerial":36670,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13137","nombre":"JOSE ALFREDO MENCHACA RUBIO","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":35292,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13139","nombre":"MIGUEL ANGEL SUAREZ GONZALEZ","departamento":"PLANTA 3","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":26319,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13145","nombre":"ALFONSO RODRIGUEZ ADAN","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34324,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13148","nombre":"MONICA BERENICE BERNAL CHAVEZ","departamento":"CORPORATIVO","puesto":"AUXILIAR DE BANCOS","fechaSerial":35816,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13149","nombre":"LESSLY GUADALUPE JAIME AGUIRRE","departamento":"PLANTA 2","puesto":"ALMACENISTA","fechaSerial":35779,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13176","nombre":"MARIA MELISSA PEÑA GUTIERREZ","departamento":"PLANTA 1","puesto":"AUXILIAR DE NOMINAS","fechaSerial":36885,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13173","nombre":"DULIO ANTONIO MARTINEZ ZUÑIGA","departamento":"PLANTA 6","puesto":"AUXILIAR DE VENTAS","fechaSerial":36538,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13165","nombre":"OBED ALAN HERNANDEZ JURADO","departamento":"VENTAS","puesto":"AUXILIAR DE MERCADOTECNIA","fechaSerial":34437,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13162","nombre":"ROGELIO FLORES AYALA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA ROBOT","fechaSerial":26072,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13164","nombre":"JOSE SAMUEL CARREON ESCAMILLA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":37098,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13180","nombre":"LEONARDO RIOS RODRIGUEZ","departamento":"PLANTA 6","puesto":"SUPERVISOR DE CALIDAD","fechaSerial":32784,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"13182","nombre":"JESUS ARTURO AMAYA GARCIA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":36532,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13219","nombre":"LILIANA TOBIAS ZUÑIGA","departamento":"VENTAS","puesto":"AUXILIAR DE VENTAS","fechaSerial":30385,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13228","nombre":"ANGEL MENCHACA ALANIS","departamento":"PLANTA 1","puesto":"OPERADOR DE MONTACARGAS","fechaSerial":37765,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13259","nombre":"EDGAR EULALIO URRUTIA HERNANDEZ","departamento":"PLANTA 1","puesto":"OPERADOR DE NIVELADORA","fechaSerial":34675,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13264","nombre":"CARMELO REYES ROMERO","departamento":"PLANTA 1","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":32006,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13271","nombre":"INGRID LUGO REYES","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":36120,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13286","nombre":"EULISES SANCHEZ REYNA","departamento":"PLANTA 1","puesto":"LIDER DE SLITTER","fechaSerial":31300,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13309","nombre":"VALERIA GARCIA MARTINEZ","departamento":"PLANTA 2","puesto":"AUXILIAR DE INGENIERIA","fechaSerial":35674,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13314","nombre":"ARMANDO SILVESTRE RAMOS VEGA","departamento":"PLANTA 2","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":28823,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13329","nombre":"AARON ABELARDO DURAN MARTINEZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":38145,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13347","nombre":"AYLIN ESMERALDA DE LA TORRE REYES","departamento":"CORPORATIVO","puesto":"COORDINADOR DE PROGRAMACION","fechaSerial":35470,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13352","nombre":"LUCINA LOPEZ GARCIA","departamento":"CORPORATIVO","puesto":"AUXILIAR DE BANCOS","fechaSerial":29767,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13353","nombre":"ALEJANDRA GUADALUPE PINEDA RODRIGUEZ","departamento":"PLANTA 1","puesto":"AUXILIAR SERVICIO A CLIENTE","fechaSerial":36488,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13357","nombre":"AXEL JAVIER ESPINOZA HERNANDEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":36906,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13364","nombre":"GUILLERMO EFRAIN CONTRERAS MALDONADO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":38134,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13367","nombre":"JAIRO JARED MONTELONGO SERRANO","departamento":"PLANTA 6","puesto":"COORDINADOR DE ESTIMACION DE COSTOS","fechaSerial":37097,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13371","nombre":"VICTOR GABRIEL MUÑOZ RODRIGUEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34041,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13390","nombre":"ALEXIS ARTURO ZAMARRON CALIXTO","departamento":"CORPORATIVO","puesto":"CHOFER ADMINISTRATIVO","fechaSerial":35619,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13400","nombre":"JONATHAN JAZIEL LIZCANO SEGURA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":38257,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13416","nombre":"ANGEL IVAN NUNCIO ONTIVEROS","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37663,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13436","nombre":"RAMIRO RODRIGUEZ MEDRANO","departamento":"PLANTA 6","puesto":"OPERADOR DE PAILERIA","fechaSerial":25384,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13427","nombre":"HECTOR ALAN BALLONES FRANCO","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":33444,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13428","nombre":"ERICK ALEXIS RIVERA MOREIRA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":38085,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13434","nombre":"CRISTIAN MISSAEL NUNCIO ESTRADA","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":33903,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13429","nombre":"BALDOMERO MUÑOZ SEPULVEDA","departamento":"PLANTA 3","puesto":"OPERADOR DE TOOLING","fechaSerial":36935,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13441","nombre":"JUAN HUMBERTO MUÑIZ SANCHEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":33495,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13445","nombre":"PATRICIA ALEJANDRA VALDEZ CAMPOS","departamento":"PLANTA 2","puesto":"CAPTURISTA","fechaSerial":34681,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13455","nombre":"ELI FRANCISCO VEGA AVILA","departamento":"PLANTA 1","puesto":"OPERADOR DE TOOLING","fechaSerial":33284,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13462","nombre":"FERNANDO OTONIEL MENCHACA JIMENEZ","departamento":"PLANTA 1","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":36471,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13491","nombre":"JOSE DE JESUS CALDERON MARTINEZ","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":38134,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13500","nombre":"CESAR DANIEL OLIVO MORALES","departamento":"PLANTA 2","puesto":"CHOFER DE TORTONETA","fechaSerial":32808,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13507","nombre":"GIOVANNY SALVADOR GARCIA MARINES","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":35833,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13508","nombre":"JUAN PABLO TORRES ESCOBEDO","departamento":"PLANTA 3","puesto":"ENFERMERO","fechaSerial":33631,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13506","nombre":"JONATHAN DANIEL IBARRA OSORIA","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":36057,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13524","nombre":"SERGIO RODOLFO RIVERA GONZALEZ","departamento":"VENTAS","puesto":"CHOFER","fechaSerial":30232,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13529","nombre":"GERARDO CASTILLO GUILLEN","departamento":"PLANTA 3","puesto":"OPERADOR DE MANTENIMIENTO","fechaSerial":37417,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13552","nombre":"RENE ALEJANDRO LUCIO ALVAREZ","departamento":"VENTAS","puesto":"ASISTENTE DE DIRECCION COMERCIAL","fechaSerial":36089,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13556","nombre":"GABRIEL ULISES TORRES SALAZAR","departamento":"PLANTA 2","puesto":"MATERIALISTA","fechaSerial":37799,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13559","nombre":"ELIUTH GAYTAN SANDOVAL","departamento":"PLANTA 1","puesto":"LIDER DE MOLINO","fechaSerial":35685,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13567","nombre":"LUIS MIGUEL FLORES VALDEZ","departamento":"PLANTA 2","puesto":"INSPECTOR DE CALIDAD","fechaSerial":30539,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"13588","nombre":"EDWIN GERARDO BARRIENTOS HERRERA","departamento":"PLANTA 1","puesto":"HABILITADOR","fechaSerial":36346,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13611","nombre":"MARCELO GUILLERMO PACHECO","departamento":"PLANTA 1","puesto":"OPERADOR DE CORTE","fechaSerial":27775,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13621","nombre":"BRAYAN FRANCISCO MARTINEZ GARCIA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":38244,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13633","nombre":"ROEL ALVARADO GARCIA","departamento":"PLANTA 1","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":29555,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13640","nombre":"RAMIRO GARCIA FARIAS","departamento":"PLANTA 1","puesto":"OPERADOR DE SEMIFLECHA","fechaSerial":36021,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13646","nombre":"LUIS ALBERTO TOBIAS BARRIENTOS","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34730,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13649","nombre":"FERNANDO LOERA IZAGUIRRE","departamento":"PLANTA 6","puesto":"OPERADOR DE PAILERIA","fechaSerial":29929,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13654","nombre":"OSVALDO NATANAEL ZAMORA MIRANDA","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":32014,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13671","nombre":"JESUS RAFAEL CALIXTO DUEÑAS","departamento":"PLANTA 1","puesto":"LIDER DE MAQUINA NIVELADORA","fechaSerial":33994,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13687","nombre":"LUIS ALFONSO AGUILAR ALMAGUER","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30565,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13686","nombre":"MICHAEL LOUIE RODOLFO VALENCIA DE LUNA","departamento":"PLANTA 2","puesto":"OPERADOR DE CORTE","fechaSerial":37541,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13692","nombre":"DANIEL GARCIA TORRES","departamento":"PLANTA 1","puesto":"OPERADOR DE CORTE","fechaSerial":36471,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13694","nombre":"JUAN MANUEL PECINA DAVILA","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":28975,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13701","nombre":"MOISES EMMANUEL SANDOVAL FUENTES","departamento":"PLANTA 2","puesto":"INSPECTOR DE CALIDAD","fechaSerial":36437,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"13707","nombre":"ANDRES MAXIMILIANO HERNANDEZ MELENDEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":36161,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13710","nombre":"CESAR EDUARDO IBARRA ORTIZ","departamento":"PLANTA 1","puesto":"OPERADOR DE TOOLING","fechaSerial":35374,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13714","nombre":"JONATHAN ALEJANDRO ROSAS MARTINEZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36028,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13717","nombre":"JESUS ERNESTO ALMADA MENDIVIL","departamento":"PLANTA 6","puesto":"ASESOR DE VENTAS","fechaSerial":31905,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13712","nombre":"ORLANDO ANTONIO VAZQUEZ MENDOZA","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":35786,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13718","nombre":"JESUS ABRAHAM CHAIREZ MEJIA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":33806,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13724","nombre":"ELIEZER ISAAC ARELLANO GARZA","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30221,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13728","nombre":"AXEL MISSAEL HERNANDEZ PALACIOS","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37765,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13729","nombre":"FRANCISCO ESPARZA REYES","departamento":"PLANTA 3","puesto":"JARDINERO","fechaSerial":25286,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13734","nombre":"JOSE JUAN GARCIA ACOSTA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37229,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13736","nombre":"OMAR ISAI SAUCEDA RODRIGUEZ","departamento":"PLANTA 1","puesto":"OPERADOR DE NIVELADORA","fechaSerial":37608,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13746","nombre":"ANGEL ARTURO CASTRO BARRERA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":29133,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13747","nombre":"EDGAR MANUEL GARCIA AGUILAR","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37858,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13768","nombre":"HECTOR JESUS SEGOVIA VILLARREAL","departamento":"PLANTA 2","puesto":"ENFERMERO PLANTA 1 2 Y 3","fechaSerial":30858,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13769","nombre":"JUAN MANUEL GODINA REYES","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":34894,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13771","nombre":"LUIS ALBERTO MOREIRA LOZANO","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":31548,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13772","nombre":"JUAN ANTONIO DOMINGUEZ VENANCIO","departamento":"PLANTA 1","puesto":"INSPECTOR DE CALIDAD","fechaSerial":35124,"estatus":"ALTA","kpi":"Tecnicos"},{"codigo":"13774","nombre":"KARLA ELIZABETH MICHEL HERNANDEZ","departamento":"VENTAS","puesto":"AUXILIAR ADMINISTRATIVO","fechaSerial":34827,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13775","nombre":"ALAN ALEXIS GONZALEZ HERNANDEZ","departamento":"PLANTA 1","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL PORTON","fechaSerial":32512,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13777","nombre":"JESUS ALEJANDRO MARTINEZ ARMENDARIZ","departamento":"PLANTA 1","puesto":"MATERIALISTA","fechaSerial":36734,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13778","nombre":"JESUS EDUARDO DELGADO ARMENDARIZ","departamento":"PLANTA 1","puesto":"HABILITADOR","fechaSerial":35948,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13780","nombre":"ABEL GERARDO FLORES ROCHA","departamento":"PLANTA 2","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":34084,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13787","nombre":"TANIA ELIZABETH SANCHEZ MALDONADO","departamento":"PLANTA 1","puesto":"CAPTURISTA","fechaSerial":36012,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13788","nombre":"SERGIO ALFREDO RENDON PRADO","departamento":"PLANTA 2","puesto":"AUXILIAR DE INGENIERIA","fechaSerial":36083,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13796","nombre":"JOSE ALEJANDRO MATA GUEL","departamento":"PLANTA 1","puesto":"OPERADOR DE MAQUINA","fechaSerial":37924,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13805","nombre":"CRISTIAN ALBERT JIMENEZ RAMIREZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":34841,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13807","nombre":"CARLOS ALFREDO JIMENEZ RAMIREZ","departamento":"CORPORATIVO","puesto":"CAPTURISTA DE BANCOS","fechaSerial":33034,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13822","nombre":"JOSE ANTONIO COLIN ITZA","departamento":"PLANTA 1","puesto":"OPERADOR DE CORTE","fechaSerial":36586,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13827","nombre":"YOHAN DAUMERI LIZCANO SEGURA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37755,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13833","nombre":"KENNET AREED ABUNDIS SOLAR","departamento":"PLANTA 1","puesto":"OPERADOR DE MONTACARGAS CEDIS","fechaSerial":36869,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13843","nombre":"MIGUEL ANGEL RIOJAS CASTAÑEDA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":36158,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13844","nombre":"JESUS ALBERTO ALVARADO PEREZ","departamento":"PLANTA 2","puesto":"OPERADOR DE CORTE","fechaSerial":29353,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13841","nombre":"NEFTALI BECERRIL LOPEZ","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":32725,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13846","nombre":"FRANCISCO JESUS MARTINEZ AGUILAR","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":30427,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13847","nombre":"LUIS ANGEL GONZALEZ GARCIA","departamento":"PLANTA 3","puesto":"OPERADOR DE DETALLE","fechaSerial":36070,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13861","nombre":"JUAN DANIEL PALOMO COVARRUBIAS","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36427,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13866","nombre":"DAVID ANTONIO JIMENEZ ESTRADA","departamento":"PLANTA 2","puesto":"OPERADOR DE CORTE","fechaSerial":37389,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13867","nombre":"JOSE ARTURO GARCIA RAMOS","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30695,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13871","nombre":"JOSE ALEJANDRO AGUILAR ESQUIVEL","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":36124,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13878","nombre":"KARLA ALEJANDRA HERNANDEZ DE LA CERDA","departamento":"PLANTA 3","puesto":"ANALISTA DE CAPACITACION","fechaSerial":37340,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13882","nombre":"IVAN DE JESUS ALDACO MOREIRA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":32610,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13893","nombre":"BERNABE DIAZ MENDOZA","departamento":"VENTAS","puesto":"AUXILIAR DE VENTAS","fechaSerial":37307,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13898","nombre":"JAIME MACIEL PADILLA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":34644,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13904","nombre":"RAUL ENRIQUE ESPINOZA VILLARREAL","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37250,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13907","nombre":"RIGOBERTO LOPEZ MARTINEZ","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":38350,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13912","nombre":"JESUS ARMANDO VALERO REYNA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":34678,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13913","nombre":"CESAR ALEJANDRO GALINDO ALEJANDRO","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":30265,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13914","nombre":"JESUS GERARDO BERNAL CHAVEZ","departamento":"PLANTA 1","puesto":"OPERADOR DE NIVELADORA","fechaSerial":37299,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13916","nombre":"DANIEL ORLANDO MEJIA TORRES","departamento":"PLANTA 1","puesto":"OPERADOR DE NIVELADORA","fechaSerial":38081,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13919","nombre":"MARIO ALEXANDER CRUZ RIVAS","departamento":"PLANTA 1","puesto":"OPERADOR DE MAQUINA","fechaSerial":38464,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13923","nombre":"LUIS ANGEL GUERRERO MALDONADO","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":35924,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13929","nombre":"EZEQUIEL BLADIMIR GUERRERO ELIZONDO","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":36417,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13930","nombre":"DANIELA LETICIA RANGEL GONZALEZ","departamento":"CORPORATIVO","puesto":"DESARROLLO ORGANIZACIONAL","fechaSerial":37666,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"13931","nombre":"JUAN DANIEL DOMINGUEZ MUÑIZ","departamento":"PLANTA 6","puesto":"OPERADOR DE PAILERIA","fechaSerial":35005,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13934","nombre":"JOSE MANUEL LEIJA RAMOS","departamento":"PLANTA 1","puesto":"SUPERVISOR DE MANTENIMIENTO","fechaSerial":31896,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13941","nombre":"CRISTIAN IVAN DIAZ MORALES","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":35230,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13948","nombre":"EMILIANO RAMOS MEDELLIN","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37893,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13951","nombre":"ROBERTO CARLOS MENDEZ MALDONADO","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":36142,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13956","nombre":"JOSE LUIS JASSO HERNANDEZ","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":37080,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13957","nombre":"ESTEBAN EDUARDO MATA DE LEON","departamento":"PLANTA 1","puesto":"OPERADOR DE CORTE","fechaSerial":30978,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13959","nombre":"KIMBERLY TREVIÑO CEDILLO","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":37111,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"13964","nombre":"ROBERTO RAMOS GONZALEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":29801,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13966","nombre":"MARIO FERNANDO INOSTROZA MERCADO","departamento":"PLANTA 1","puesto":"OPERADOR DE SEMIFLECHA","fechaSerial":34525,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13976","nombre":"EDGAR ALFREDO GOMEZ NIÑO","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":33599,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13985","nombre":"ANTONY JAZIEL ESPINOZA HERNANDEZ","departamento":"PLANTA 1","puesto":"OPERADOR DE CORTE","fechaSerial":37491,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13990","nombre":"ALEXIS DANIEL ORTIZ MORA","departamento":"PLANTA 1","puesto":"OPERADOR DE CORTE","fechaSerial":35210,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14002","nombre":"RODOLFO RODRIGUEZ MORA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":29857,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14005","nombre":"FRANCISCO JAVIER ESQUIVEL REYNA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":30359,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14008","nombre":"JOSE ANTONIO GARCIA CASTILLO","departamento":"PLANTA 2","puesto":"OPERADOR DE CORTE","fechaSerial":31669,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14021","nombre":"GERARDO FABELA IBARRA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":31775,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14022","nombre":"JESUS SAMANIEGO BUSTOS","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":30248,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14028","nombre":"LESLY DAYANA TOVAR ARZOLA","departamento":"VENTAS","puesto":"AUXILIAR DE VENTAS","fechaSerial":37675,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"14037","nombre":"RUBEN DELGADO FLORES","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":36567,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14041","nombre":"FROYLAN DE JESUS GARCIA GAYTAN","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":34048,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14042","nombre":"JAVIER FUENTES TORRES","departamento":"PLANTA 1","puesto":"OPERADOR DE NIVELADORA","fechaSerial":35709,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14043","nombre":"JOSE ALBERTO TOLENTINO PALACIOS","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37297,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14044","nombre":"DAVID HERNANDEZ GARCIA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":37802,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14048","nombre":"HORACIO YADIR AKESSLER VELASQUEZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":32403,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14049","nombre":"ARMANDO JARED HERNANDEZ RODRIGUEZ","departamento":"PLANTA 1","puesto":"OPERADOR DE CORTE","fechaSerial":38007,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14050","nombre":"MARCO ANTONIO PADILLA FRAUSTRO","departamento":"VENTAS","puesto":"GERENTE DE VENTAS","fechaSerial":26818,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"14055","nombre":"JESUS RAMON RAMIREZ OLGUIN","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":35771,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14056","nombre":"DIEGO EDUARDO RAMIREZ OLGUIN","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":36767,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14057","nombre":"ROBERTO ELIAS ZAVALA CONTRERAS","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":27740,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14060","nombre":"SERGIO JAVIER ARAMBULA GARCIA","departamento":"VENTAS","puesto":"CHOFER","fechaSerial":28691,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14061","nombre":"ARTURO IBARRA SANCHEZ","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":34152,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14062","nombre":"MARCOS ALBERTO ONTIVEROS TORRES","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":37314,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14063","nombre":"EDSON ALI JASSO CASTAÑEDA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":37048,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14066","nombre":"FELIPE GALINDO ALVIZO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":33938,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14067","nombre":"JOSE ANGEL BAÑUELOS MARTINEZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":29633,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14068","nombre":"JUAN ANTONIO VELEZ GARCIA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":31552,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14069","nombre":"LAURA NOHEMI AGUILAR ZUÑIGA","departamento":"CORPORATIVO","puesto":"CAPTURISTA DE COMERCIO EXTERIOR","fechaSerial":33742,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14071","nombre":"NESTOR RINCON MARTINEZ","departamento":"PLANTA 2","puesto":"GUARDIA DE SEGURIDAD PATRIMONIAL","fechaSerial":30513,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14072","nombre":"ELIAS GAEL ZAVALA TENORIO","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":37453,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14073","nombre":"ALEJANDRO GREGORIO LUNA AYALA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":36018,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14075","nombre":"KEVIN ANTONIO CRUZ MARTINEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":38057,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14076","nombre":"MARCO ANTONIO GARCIA FLORES","departamento":"PLANTA 2","puesto":"OPERADOR GENERAL","fechaSerial":34981,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14078","nombre":"ALBERTO FLAVIO TERRAZAS GUAJARDO","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":27964,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14079","nombre":"FIDEL DE JESUS HERNANDEZ ARAIZA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":36150,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14080","nombre":"GUILLERMO ALARCON ELIZONDO","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":33625,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14081","nombre":"YOANA IRIDIAN CASTILLO RODRIGUEZ","departamento":"PLANTA 3","puesto":"LIMPIEZA","fechaSerial":34819,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14082","nombre":"ARATH EMMANUEL VILLARREAL RAMOS","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":37478,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14083","nombre":"CINTYA LIZETH RODRIGUEZ MANCILLA","departamento":"PLANTA 6","puesto":"AUXILIAR DE CALIDAD","fechaSerial":34664,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"14084","nombre":"JEAN DE PIERRE AGUILAR CAMPOS","departamento":"PLANTA 2","puesto":"OPERADOR GENERAL","fechaSerial":37151,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14085","nombre":"JESUS DANIEL ESPINOZA CAZARES","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":33297,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14086","nombre":"JOSE FABIAN CIBRIAN CAMPOS","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37247,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14087","nombre":"AXEL SANTILLAN LEIJA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36543,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14088","nombre":"ROGELIO MANUEL FELAN CANTU","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36462,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14089","nombre":"JESUS ERVEY SILVA GARCIA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":31329,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14090","nombre":"RICARDO PECINA VAZQUEZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37305,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14091","nombre":"EDGAR ALAN DIAZ MORALES","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":38071,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14093","nombre":"DIEGO ALBERTO LOPEZ LARA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":38114,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14095","nombre":"JOSE RAUL COLLAZO IBARRA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":33380,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14096","nombre":"JOSE ANGEL RODRIGUEZ ZAPATA","departamento":"PLANTA 2","puesto":"OPERADOR DE INGENIERIA","fechaSerial":35288,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14094","nombre":"JESUS ISAI BARRON VILLEGAS","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37462,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14097","nombre":"MIGUEL ANGEL DE LEON ZUÑIGA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":33486,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14099","nombre":"VICTOR ALFONSO DAVILA TORRES","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36772,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14100","nombre":"MARIBEL BARRERA SANDOVAL","departamento":"VENTAS","puesto":"AUXILIAR DE VENTAS","fechaSerial":29554,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"14102","nombre":"JAVIER ALAN RODRIGUEZ MONTOYA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36326,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14103","nombre":"DANIEL ALBERTO MARTINEZ PUEBLA","departamento":"PLANTA 2","puesto":"OPERADOR GENERAL","fechaSerial":33868,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14104","nombre":"ANTONIO MARTINEZ CASTILLO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":31014,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14106","nombre":"JUAN JOSAFAT TOVAR LOPEZ","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":35212,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14108","nombre":"SAUL TOVIAS IBARRA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":30912,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14109","nombre":"CRISTIAN ALEXANDER ARMENDARIZ SILVA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":37591,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14110","nombre":"JOSE GILBERTO RODRIGUEZ CAMACHO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34344,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14111","nombre":"JONATHAN ESAU RAMIREZ PEÑALOZA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":35679,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14112","nombre":"ALEXIS EVERARDO DURAN CORDOVA","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":36278,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14114","nombre":"RICARDO ALFONSO MERCADO CASTILLO","departamento":"VENTAS","puesto":"ASESOR DE VENTAS","fechaSerial":30347,"estatus":"ALTA","kpi":"Administrativo"},{"codigo":"14116","nombre":"JOSE NAHUM LOPEZ BARRON","departamento":"PLANTA 3","puesto":"OPERADOR GENERAL","fechaSerial":37495,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14118","nombre":"RUBEN VALDEZ LOPEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":32052,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14119","nombre":"PEDRO ERNESTO SANCHEZ HERNANDEZ","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34503,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14120","nombre":"JONATHAN ALEXIS MOREIRA ESCAREÑO","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":36872,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14121","nombre":"ULISES RAYMUNDO HERNANDEZ LUNA","departamento":"PLANTA 2","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34043,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14122","nombre":"ALEXIS ORLANDO CASTILLEJA SARABIA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36565,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14123","nombre":"JULIO CESAR RAMOS GARCIA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":30986,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14124","nombre":"ANGEL AZAEL CASTILLO MATA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":38728,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14126","nombre":"ERIK JOSUE DE LA CERDA HERNANDEZ","departamento":"PLANTA 2","puesto":"OPERADOR GENERAL","fechaSerial":37138,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14127","nombre":"ALEXIS VELAZQUEZ LARA","departamento":"PLANTA 2","puesto":"OPERADOR GENERAL","fechaSerial":36302,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14128","nombre":"IVAN DE JESUS RIOJAS RODRIGUEZ","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":34586,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14129","nombre":"EDWIN ALAN PEREZ AGUILAR","departamento":"PLANTA 2","puesto":"OPERADOR GENERAL","fechaSerial":35917,"estatus":"ALTA","kpi":"Servicios"},{"codigo":"14130","nombre":"ALAN ELIU MENDEZ ZUÑIGA","departamento":"PLANTA 6","puesto":"OPERADOR DE SOLDADURA","fechaSerial":33998,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14131","nombre":"LUIS GERARDO FLORES HERNANDEZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":35779,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14132","nombre":"OLIVER GERARDO CISNEROS GALAVIZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":36772,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14133","nombre":"NEMIAS CARREON CALVA","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":37937,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14134","nombre":"RICARDO ABISAI ALVARADO RIOS","departamento":"PLANTA 6","puesto":"OPERADOR DE PAILERIA","fechaSerial":31838,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14135","nombre":"BRANDON YAHIR CASTILLO RODRIGUEZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":38344,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"14137","nombre":"JERONIMO ABISAI ROMO ORTIZ","departamento":"PLANTA 1","puesto":"OPERADOR GENERAL","fechaSerial":33835,"estatus":"ALTA","kpi":"Operativo"},{"codigo":"13886","nombre":"JACINTO RODRIGUEZ MARTINEZ","departamento":"PLANTA 1","puesto":"OPERADOR DE MONTACARGAS","fechaSerial":24759,"estatus":"ALTA","kpi":"Servicios"}]
+;
+
+const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+function excelSerialToDate(serial){
+  // Excel epoch (Windows): serial 25569 = 1970-01-01 UTC
+  return new Date((serial - 25569) * 86400 * 1000);
+}
+
+const today = new Date();
+today.setHours(0,0,0,0);
+
+const employees = RAW_DATA.map(e => {
+  const birth = excelSerialToDate(e.fechaSerial);
+  let age = today.getUTCFullYear() - birth.getUTCFullYear();
+  const hadBirthdayThisYear = (today.getUTCMonth() > birth.getUTCMonth()) ||
+    (today.getUTCMonth() === birth.getUTCMonth() && today.getUTCDate() >= birth.getUTCDate());
+  if(!hadBirthdayThisYear) age -= 1;
+
+  const date60 = new Date(Date.UTC(birth.getUTCFullYear()+60, birth.getUTCMonth(), birth.getUTCDate()));
+  const yearsTo60 = (date60 - today) / (365.25*86400*1000);
+  const turning60Soon = yearsTo60 >= 0 && yearsTo60 <= 2;
+
+  // next birthday (for sorting/countdown)
+  let nb = new Date(Date.UTC(today.getUTCFullYear(), birth.getUTCMonth(), birth.getUTCDate()));
+  if(nb < today) nb = new Date(Date.UTC(today.getUTCFullYear()+1, birth.getUTCMonth(), birth.getUTCDate()));
+  const daysToNextBirthday = Math.round((nb - today)/86400000);
+
+  return {
+    ...e,
+    birth,
+    birthMonth: birth.getUTCMonth(),
+    birthDay: birth.getUTCDate(),
+    age,
+    yearsTo60,
+    turning60Soon,
+    daysToNextBirthday,
+    isAdmin: e.kpi === 'Administrativo'
+  };
+});
+
+const fmtDate = (m,d) => `${d} de ${MESES[m]}`;
+
+/* ---------- SEGUIMIENTO PERSISTENTE (marcar como felicitado) ---------- */
+const STORAGE_KEY = 'mmx_cumple_felicitados';
+function loadGreeted(){
+  try{
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  }catch(e){ return {}; }
+}
+function saveGreeted(map){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(map)); }catch(e){}
+}
+let greetedMap = loadGreeted();
+function greetKey(codigo){ return `${today.getUTCFullYear()}-${codigo}`; }
+function isGreeted(codigo){ return !!greetedMap[greetKey(codigo)]; }
+function toggleGreeted(codigo){
+  const k = greetKey(codigo);
+  if(greetedMap[k]) delete greetedMap[k];
+  else greetedMap[k] = true;
+  saveGreeted(greetedMap);
+}
+
+/* ---------- KPI STRIP ---------- */
+function renderKPIs(){
+  const total = employees.length;
+  const thisMonth = employees.filter(e => e.birthMonth === today.getUTCMonth()).length;
+  const turning60Count = employees.filter(e => e.turning60Soon).length;
+  const adminThisMonth = employees.filter(e => e.isAdmin && e.birthMonth === today.getUTCMonth()).length;
+  const pendingThisMonth = employees.filter(e => e.birthMonth === today.getUTCMonth() && !isGreeted(e.codigo)).length;
+
+  const cards = [
+    {label:'Total de colaboradores', value: total, foot:'Registros activos en la matriz'},
+    {label:`Cumpleaños en ${MESES[today.getUTCMonth()]}`, value: thisMonth, foot:'Mes en curso'},
+    {label:'Próximos a cumplir 60', value: turning60Count, foot:'Faltan 2 años o menos', cls:'alert'},
+    {label:'Pendientes por felicitar', value: pendingThisMonth, foot:'Del mes en curso, sin marcar', cls:'gold'},
+  ];
+  document.getElementById('kpiStrip').innerHTML = cards.map(c => `
+    <div class="kpi-card ${c.cls||''}">
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+      <div class="foot">${c.foot}</div>
+    </div>`).join('');
+}
+
+/* ---------- ALERT 60 ---------- */
+function renderAlert60(){
+  const list = employees.filter(e => e.turning60Soon).sort((a,b) => a.yearsTo60 - b.yearsTo60);
+  const el = document.getElementById('alert60List');
+  if(list.length === 0){
+    el.innerHTML = '<p class="empty-note">No hay colaboradores próximos a cumplir 60 años en este momento.</p>';
+    return;
+  }
+  el.innerHTML = list.map(e => {
+    const months = Math.max(0, Math.round(e.yearsTo60*12));
+    return `
+    <div class="alert-row">
+      <div class="name">${titleCase(e.nombre)}</div>
+      <div>Ficha ${e.codigo} · ${titleCase(e.departamento)}</div>
+      <div>Cumple 60 el ${fmtDate(e.birthMonth, e.birthDay)}</div>
+      <div class="pill">Faltan ~${months} meses</div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- MONTH CALENDAR ---------- */
+function populateMonthSelect(){
+  const sel = document.getElementById('monthSelect');
+  sel.innerHTML = MESES.map((m,i) => `<option value="${i}" ${i===today.getUTCMonth() ? 'selected':''}>${m}</option>`).join('');
+  sel.addEventListener('change', () => renderMonth(parseInt(sel.value)));
+  document.getElementById('exportMonthBtn').addEventListener('click', () => exportMonthToExcel(parseInt(sel.value)));
+}
+
+function exportMonthToExcel(monthIdx){
+  const people = employees.filter(e => e.birthMonth === monthIdx).sort((a,b) => a.birthDay - b.birthDay);
+  if(people.length === 0){
+    alert(`No hay cumpleaños registrados en ${MESES[monthIdx]} para exportar.`);
+    return;
+  }
+  const rows = people.map(e => ({
+    'Ficha': e.codigo,
+    'Nombre': titleCase(e.nombre),
+    'Departamento': titleCase(e.departamento),
+    'Puesto': titleCase(e.puesto),
+    'Fecha de nacimiento': fmtDate(e.birthMonth, e.birthDay),
+    'Cumple años': e.age + 1,
+    'Clasificación': e.kpi,
+    'Personal administrativo': e.isAdmin ? 'Sí' : 'No',
+    'Próximo a cumplir 60': e.turning60Soon ? 'Sí' : 'No'
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    {wch:8},{wch:32},{wch:16},{wch:30},{wch:18},{wch:11},{wch:16},{wch:20},{wch:18}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, MESES[monthIdx].substring(0,31));
+  XLSX.writeFile(wb, `Cumpleaneros_${MESES[monthIdx]}_Metelmex.xlsx`);
+}
+
+function titleCase(s){
+  return s.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+function renderMonth(monthIdx){
+  const people = employees.filter(e => e.birthMonth === monthIdx).sort((a,b) => a.birthDay - b.birthDay);
+  const adminCount = people.filter(e => e.isAdmin).length;
+  const turn60Count = people.filter(e => e.turning60Soon).length;
+
+  document.getElementById('monthSummary').innerHTML = `
+    <span class="chip">${people.length} cumpleaños en ${MESES[monthIdx]}</span>
+    ${adminCount > 0 ? `<span class="chip gold">${adminCount} del área administrativa</span>` : ''}
+    ${turn60Count > 0 ? `<span class="chip" style="background:var(--alert-soft);color:var(--alert);border-color:#f0c7a9;">${turn60Count} próximos a cumplir 60</span>` : ''}
+  `;
+
+  const grid = document.getElementById('monthGrid');
+  if(people.length === 0){
+    grid.innerHTML = `<div class="no-birthdays">No hay cumpleaños registrados en ${MESES[monthIdx]}.</div>`;
+    return;
+  }
+
+  // group by day
+  const byDay = {};
+  people.forEach(e => { (byDay[e.birthDay] = byDay[e.birthDay] || []).push(e); });
+
+  grid.innerHTML = Object.keys(byDay).sort((a,b)=>a-b).map(day => `
+    <div class="day-row">
+      <div class="day-num">${day}</div>
+      <div class="day-people">
+        ${byDay[day].map(e => `
+          <div class="person-line">
+            <label class="greet-check">
+              <input type="checkbox" data-codigo="${e.codigo}" class="greetBox" ${isGreeted(e.codigo) ? 'checked' : ''}>
+              <span class="pname">${titleCase(e.nombre)}</span>
+            </label>
+            <span class="pmeta">Ficha ${e.codigo} · ${titleCase(e.departamento)} · ${titleCase(e.puesto)} · cumple ${e.age+1}</span>
+            ${e.isAdmin ? '<span class="badge admin">Administrativo</span>' : ''}
+            ${e.turning60Soon ? '<span class="badge turn60">Próximo a 60</span>' : ''}
+            ${isGreeted(e.codigo) ? '<span class="badge greeted">✓ Felicitado</span>' : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  grid.querySelectorAll('.greetBox').forEach(cb => {
+    cb.addEventListener('change', () => {
+      toggleGreeted(cb.dataset.codigo);
+      renderMonth(monthIdx);
+      renderKPIs();
+    });
+  });
+}
+
+/* ---------- SEARCH BY FICHA ---------- */
+function renderSearch(){
+  const input = document.getElementById('fichaSearch');
+  const result = document.getElementById('searchResult');
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    if(!q){
+      result.innerHTML = '<p class="not-found">Ingresa un número de ficha para ver el detalle del colaborador.</p>';
+      return;
+    }
+    const emp = employees.find(e => e.codigo === q);
+    if(!emp){
+      result.innerHTML = `<p class="not-found">No se encontró ningún colaborador con la ficha "${q}".</p>`;
+      return;
+    }
+    const initials = emp.nombre.split(' ').slice(0,2).map(w=>w[0]).join('');
+    result.innerHTML = `
+      <div class="person-card">
+        <div class="avatar-circle">${initials}</div>
+        <div>
+          <h3>${titleCase(emp.nombre)}</h3>
+          <div class="grid2">
+            <div><span class="k">Ficha</span>${emp.codigo}</div>
+            <div><span class="k">Departamento</span>${titleCase(emp.departamento)}</div>
+            <div><span class="k">Puesto</span>${titleCase(emp.puesto)}</div>
+            <div><span class="k">Fecha de nacimiento</span>${fmtDate(emp.birthMonth, emp.birthDay)}</div>
+            <div><span class="k">Edad actual</span>${emp.age} años</div>
+            <div><span class="k">Próximo cumpleaños</span>en ${emp.daysToNextBirthday} días</div>
+          </div>
+          <div class="badges">
+            ${emp.isAdmin ? '<span class="badge admin">Personal administrativo</span>' : ''}
+            ${emp.turning60Soon ? '<span class="badge turn60">Cumple 60 en menos de 2 años</span>' : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  });
+}
+
+/* ---------- TABLE ---------- */
+function populateTableFilters(){
+  const deptos = [...new Set(employees.map(e => e.departamento))].sort();
+  const kpis = [...new Set(employees.map(e => e.kpi))].sort();
+  document.getElementById('deptoFilter').insertAdjacentHTML('beforeend', deptos.map(d => `<option value="${d}">${titleCase(d)}</option>`).join(''));
+  document.getElementById('monthFilter').insertAdjacentHTML('beforeend', MESES.map((m,i) => `<option value="${i}">${m}</option>`).join(''));
+  document.getElementById('kpiFilter').insertAdjacentHTML('beforeend', kpis.map(k => `<option value="${k}">${k}</option>`).join(''));
+
+  ['deptoFilter','monthFilter','kpiFilter','tableSearch'].forEach(id => {
+    document.getElementById(id).addEventListener('input', renderTable);
+  });
+}
+
+function renderTable(){
+  const depto = document.getElementById('deptoFilter').value;
+  const month = document.getElementById('monthFilter').value;
+  const kpi = document.getElementById('kpiFilter').value;
+  const q = document.getElementById('tableSearch').value.trim().toLowerCase();
+
+  let list = employees.filter(e => {
+    if(depto && e.departamento !== depto) return false;
+    if(month !== '' && e.birthMonth !== parseInt(month)) return false;
+    if(kpi && e.kpi !== kpi) return false;
+    if(q && !(e.nombre.toLowerCase().includes(q) || e.codigo.includes(q))) return false;
+    return true;
+  }).sort((a,b) => a.birthMonth - b.birthMonth || a.birthDay - b.birthDay);
+
+  document.getElementById('tableBody').innerHTML = list.map(e => `
+    <tr>
+      <td>${e.codigo}</td>
+      <td>${titleCase(e.nombre)} ${e.isAdmin ? '<span class="badge admin" style="margin-left:6px;">Admin</span>' : ''} ${e.turning60Soon ? '<span class="badge turn60" style="margin-left:6px;">60</span>' : ''}</td>
+      <td>${titleCase(e.departamento)}</td>
+      <td>${titleCase(e.puesto)}</td>
+      <td>${fmtDate(e.birthMonth, e.birthDay)}</td>
+      <td>${e.age}</td>
+      <td>${e.kpi}</td>
+    </tr>
+  `).join('');
+  document.getElementById('tableCount').textContent = `Mostrando ${list.length} de ${employees.length} colaboradores`;
+}
+
+/* ---------- CHART ---------- */
+function renderChart(){
+  const counts = new Array(12).fill(0);
+  employees.forEach(e => counts[e.birthMonth]++);
+  const ctx = document.getElementById('distChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: MESES,
+      datasets: [{
+        label: 'Cumpleaños',
+        data: counts,
+        backgroundColor: '#1a4174',
+        hoverBackgroundColor: '#3b7dd8',
+        borderRadius: 6,
+        maxBarThickness: 46
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision:0 }, grid:{ color:'#eef1f6' } },
+        x: { grid: { display:false } }
+      }
+    }
+  });
+}
+
+/* ---------- INIT ---------- */
+renderKPIs();
+renderAlert60();
+populateMonthSelect();
+renderMonth(today.getUTCMonth());
+renderSearch();
+populateTableFilters();
+renderTable();
+renderChart();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
