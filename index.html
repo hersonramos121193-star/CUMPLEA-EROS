@@ -26,6 +26,8 @@
     --gold-soft:#fbeecb;
     --alert:#c0562b;
     --alert-soft:#fbe4d6;
+    --critical:#a52418;
+    --critical-soft:#f9d9d4;
     --ok:#2f8f6d;
     --line:#dde6f0;
     --text:#16253c;
@@ -73,7 +75,7 @@
 
   /* KPI strip */
   .kpis{
-    display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin:-40px 0 30px;
+    display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin:-40px 0 30px;
     position:relative; z-index:2;
   }
   .kpi-card{
@@ -86,6 +88,7 @@
   .kpi-card .foot{font-size:12.5px; color:var(--text-soft); margin-top:4px;}
   .kpi-card.alert .value{color:var(--alert);}
   .kpi-card.gold .value{color:#a9791b;}
+  .kpi-card.critical .value{color:var(--critical);}
 
   section{margin-bottom:34px;}
   .section-head{display:flex; align-items:baseline; justify-content:space-between; gap:16px; margin-bottom:14px; flex-wrap:wrap;}
@@ -109,6 +112,11 @@
     background:linear-gradient(180deg,var(--alert-soft),#fff 60%);
     border:1px solid #f0c7a9;
   }
+  .alert-panel.critical{
+    background:linear-gradient(180deg,var(--critical-soft),#fff 60%);
+    border:1px solid #eab8b0;
+  }
+  .alert-panel.critical .pill{background:var(--critical);}
   .alert-list{display:flex; flex-direction:column; gap:0;}
   .alert-row{
     display:grid; grid-template-columns:1.6fr 1fr 1fr 1fr; gap:12px; align-items:center;
@@ -167,6 +175,7 @@
   }
   .badge.admin{background:var(--gold-soft); color:#8a6416; border:1px solid #eddca0;}
   .badge.turn60{background:var(--alert-soft); color:var(--alert); border:1px solid #f0c7a9;}
+  .badge.over60{background:var(--critical-soft); color:var(--critical); border:1px solid #eab8b0;}
   .badge.greeted{background:#e3f3ec; color:var(--ok); border:1px solid #bfe4d3;}
   .greet-check{display:flex; align-items:center; gap:6px; cursor:pointer;}
   .greet-check input{width:15px; height:15px; accent-color:var(--ok); cursor:pointer;}
@@ -246,6 +255,17 @@
     </div>
     <div class="card alert-panel">
       <div class="alert-list" id="alert60List"></div>
+    </div>
+  </section>
+
+  <!-- Alert: already over 60 -->
+  <section>
+    <div class="section-head">
+      <h2>Colaboradores mayores de 60 años <span class="tag">Alerta</span></h2>
+      <div class="desc">Personal activo que ya cumplió 60 años</div>
+    </div>
+    <div class="card alert-panel critical">
+      <div class="alert-list" id="alertOver60List"></div>
     </div>
   </section>
 
@@ -343,6 +363,7 @@ const employees = RAW_DATA.map(e => {
   const date60 = new Date(Date.UTC(birth.getUTCFullYear()+60, birth.getUTCMonth(), birth.getUTCDate()));
   const yearsTo60 = (date60 - today) / (365.25*86400*1000);
   const turning60Soon = yearsTo60 >= 0 && yearsTo60 <= 2;
+  const isOver60 = age >= 60;
 
   // next birthday (for sorting/countdown)
   let nb = new Date(Date.UTC(today.getUTCFullYear(), birth.getUTCMonth(), birth.getUTCDate()));
@@ -357,6 +378,7 @@ const employees = RAW_DATA.map(e => {
     age,
     yearsTo60,
     turning60Soon,
+    isOver60,
     daysToNextBirthday,
     isAdmin: e.kpi === 'Administrativo'
   };
@@ -389,6 +411,7 @@ function renderKPIs(){
   const total = employees.length;
   const thisMonth = employees.filter(e => e.birthMonth === today.getUTCMonth()).length;
   const turning60Count = employees.filter(e => e.turning60Soon).length;
+  const over60Count = employees.filter(e => e.isOver60).length;
   const adminThisMonth = employees.filter(e => e.isAdmin && e.birthMonth === today.getUTCMonth()).length;
   const pendingThisMonth = employees.filter(e => e.birthMonth === today.getUTCMonth() && !isGreeted(e.codigo)).length;
 
@@ -396,6 +419,7 @@ function renderKPIs(){
     {label:'Total de colaboradores', value: total, foot:'Registros activos en la matriz'},
     {label:`Cumpleaños en ${MESES[today.getUTCMonth()]}`, value: thisMonth, foot:'Mes en curso'},
     {label:'Próximos a cumplir 60', value: turning60Count, foot:'Faltan 2 años o menos', cls:'alert'},
+    {label:'Mayores de 60 años', value: over60Count, foot:'Ya cumplieron 60 años', cls:'critical'},
     {label:'Pendientes por felicitar', value: pendingThisMonth, foot:'Del mes en curso, sin marcar', cls:'gold'},
   ];
   document.getElementById('kpiStrip').innerHTML = cards.map(c => `
@@ -426,6 +450,23 @@ function renderAlert60(){
   }).join('');
 }
 
+/* ---------- ALERT OVER 60 ---------- */
+function renderAlertOver60(){
+  const list = employees.filter(e => e.isOver60).sort((a,b) => b.age - a.age);
+  const el = document.getElementById('alertOver60List');
+  if(list.length === 0){
+    el.innerHTML = '<p class="empty-note">No hay colaboradores mayores de 60 años en este momento.</p>';
+    return;
+  }
+  el.innerHTML = list.map(e => `
+    <div class="alert-row">
+      <div class="name">${titleCase(e.nombre)}</div>
+      <div>Ficha ${e.codigo} · ${titleCase(e.departamento)}</div>
+      <div>Nació el ${fmtDate(e.birthMonth, e.birthDay)}</div>
+      <div class="pill">${e.age} años</div>
+    </div>`).join('');
+}
+
 /* ---------- MONTH CALENDAR ---------- */
 function populateMonthSelect(){
   const sel = document.getElementById('monthSelect');
@@ -449,11 +490,12 @@ function exportMonthToExcel(monthIdx){
     'Cumple años': e.age + 1,
     'Clasificación': e.kpi,
     'Personal administrativo': e.isAdmin ? 'Sí' : 'No',
-    'Próximo a cumplir 60': e.turning60Soon ? 'Sí' : 'No'
+    'Próximo a cumplir 60': e.turning60Soon ? 'Sí' : 'No',
+    'Mayor de 60 años': e.isOver60 ? 'Sí' : 'No'
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
-    {wch:8},{wch:32},{wch:16},{wch:30},{wch:18},{wch:11},{wch:16},{wch:20},{wch:18}
+    {wch:8},{wch:32},{wch:16},{wch:30},{wch:18},{wch:11},{wch:16},{wch:20},{wch:18},{wch:16}
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, MESES[monthIdx].substring(0,31));
@@ -468,11 +510,13 @@ function renderMonth(monthIdx){
   const people = employees.filter(e => e.birthMonth === monthIdx).sort((a,b) => a.birthDay - b.birthDay);
   const adminCount = people.filter(e => e.isAdmin).length;
   const turn60Count = people.filter(e => e.turning60Soon).length;
+  const over60Count = people.filter(e => e.isOver60).length;
 
   document.getElementById('monthSummary').innerHTML = `
     <span class="chip">${people.length} cumpleaños en ${MESES[monthIdx]}</span>
     ${adminCount > 0 ? `<span class="chip gold">${adminCount} del área administrativa</span>` : ''}
     ${turn60Count > 0 ? `<span class="chip" style="background:var(--alert-soft);color:var(--alert);border-color:#f0c7a9;">${turn60Count} próximos a cumplir 60</span>` : ''}
+    ${over60Count > 0 ? `<span class="chip" style="background:var(--critical-soft);color:var(--critical);border-color:#eab8b0;">${over60Count} mayores de 60</span>` : ''}
   `;
 
   const grid = document.getElementById('monthGrid');
@@ -498,6 +542,7 @@ function renderMonth(monthIdx){
             <span class="pmeta">Ficha ${e.codigo} · ${titleCase(e.departamento)} · ${titleCase(e.puesto)} · cumple ${e.age+1}</span>
             ${e.isAdmin ? '<span class="badge admin">Administrativo</span>' : ''}
             ${e.turning60Soon ? '<span class="badge turn60">Próximo a 60</span>' : ''}
+            ${e.isOver60 ? '<span class="badge over60">Mayor de 60</span>' : ''}
             ${isGreeted(e.codigo) ? '<span class="badge greeted">✓ Felicitado</span>' : ''}
           </div>
         `).join('')}
@@ -546,6 +591,7 @@ function renderSearch(){
           <div class="badges">
             ${emp.isAdmin ? '<span class="badge admin">Personal administrativo</span>' : ''}
             ${emp.turning60Soon ? '<span class="badge turn60">Cumple 60 en menos de 2 años</span>' : ''}
+            ${emp.isOver60 ? '<span class="badge over60">Mayor de 60 años</span>' : ''}
           </div>
         </div>
       </div>
@@ -583,7 +629,7 @@ function renderTable(){
   document.getElementById('tableBody').innerHTML = list.map(e => `
     <tr>
       <td>${e.codigo}</td>
-      <td>${titleCase(e.nombre)} ${e.isAdmin ? '<span class="badge admin" style="margin-left:6px;">Admin</span>' : ''} ${e.turning60Soon ? '<span class="badge turn60" style="margin-left:6px;">60</span>' : ''}</td>
+      <td>${titleCase(e.nombre)} ${e.isAdmin ? '<span class="badge admin" style="margin-left:6px;">Admin</span>' : ''} ${e.turning60Soon ? '<span class="badge turn60" style="margin-left:6px;">60</span>' : ''} ${e.isOver60 ? '<span class="badge over60" style="margin-left:6px;">+60</span>' : ''}</td>
       <td>${titleCase(e.departamento)}</td>
       <td>${titleCase(e.puesto)}</td>
       <td>${fmtDate(e.birthMonth, e.birthDay)}</td>
@@ -627,6 +673,7 @@ function renderChart(){
 /* ---------- INIT ---------- */
 renderKPIs();
 renderAlert60();
+renderAlertOver60();
 populateMonthSelect();
 renderMonth(today.getUTCMonth());
 renderSearch();
