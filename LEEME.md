@@ -22,6 +22,9 @@ Los navegadores (Chrome/Android) **solo permiten instalar una PWA y usar el Serv
 ## Actualizar los datos de los colaboradores
 Los datos están embebidos dentro de `index.html` (variable `RAW_DATA`). Cuando tengan una matriz nueva, compártanla y se regenera el archivo con los datos actualizados — no hace falta tocar nada más del paquete (manifest, íconos, service worker siguen igual).
 
+## Botón "+ Agregar colaborador"
+El botón en la parte superior del dashboard permite dar de alta a un colaborador nuevo (ficha, nombre, fecha de nacimiento, departamento, puesto y clasificación) para consultarlo de inmediato en KPIs, alertas, calendario, búsqueda y tabla. **Importante**: como es una app sin servidor, estas altas se guardan únicamente en el navegador/celular donde se agregaron (no se comparten entre dispositivos ni quedan escritas en el archivo `index.html`). Para que un alta sea permanente y visible para todo el equipo, dentro del mismo botón hay que usar "Exportar agregados (Excel)" o "Copiar JSON" y enviarle esos datos a quien mantiene el archivo, para que los incorpore a `RAW_DATA` y regenere el paquete.
+
 ## Contenido del paquete
 - `index.html` — la app completa (dashboard + lógica + datos).
 - `manifest.json` — configuración de instalación (nombre, ícono, colores).

@@ -132,7 +132,7 @@
 
   /* Month selector + calendar */
   .month-controls{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
-  select, input[type=text]{
+  select, input[type=text], input[type=date]{
     font-family:var(--font-body); font-size:14px; padding:9px 12px; border-radius:9px;
     border:1px solid var(--line); background:var(--white); color:var(--text);
   }
@@ -146,6 +146,53 @@
   .export-btn:hover{background:var(--navy-700);}
   .export-btn:active{transform:translateY(1px);}
   .export-btn:disabled{opacity:.5; cursor:not-allowed;}
+
+  /* Topbar "add employee" button */
+  .topbar-btn{
+    margin-top:16px; border-color:rgba(255,255,255,.35); background:rgba(255,255,255,.08);
+  }
+  .topbar-btn:hover{background:rgba(255,255,255,.18);}
+  @media (min-width:760px){
+    .topbar-inner{position:relative;}
+    .topbar-btn{position:absolute; top:0; right:0; margin-top:0;}
+  }
+
+  /* Add-employee overlay/modal */
+  .overlay{
+    position:fixed; inset:0; background:rgba(10,26,47,.55);
+    display:none; align-items:center; justify-content:center; z-index:50; padding:20px;
+  }
+  .overlay.open{display:flex;}
+  .modal{max-width:560px; width:100%; max-height:88vh; overflow-y:auto;}
+  .modal-head{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px;}
+  .modal-head h2{font-family:var(--font-display); font-size:20px; margin:0; color:var(--navy-900);}
+  .modal-close{
+    background:none; border:none; font-size:18px; line-height:1; cursor:pointer;
+    color:var(--text-soft); padding:4px;
+  }
+  .modal-close:hover{color:var(--text);}
+  .form-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px 16px;
+  }
+  .form-grid label{
+    display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--text-soft); font-weight:600;
+  }
+  .form-error{
+    color:var(--critical); font-size:13px; background:var(--critical-soft);
+    border:1px solid #eab8b0; border-radius:8px; padding:8px 10px; margin-top:12px;
+  }
+  .modal-actions{display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;}
+  .manual-list-section{border-top:1px solid var(--line); margin-top:18px; padding-top:16px;}
+  .manual-row{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:8px 4px; border-bottom:1px dashed var(--line); font-size:13.5px;
+  }
+  .manual-row:last-child{border-bottom:none;}
+  .manual-row .remove-btn{
+    background:none; border:none; color:var(--critical); font-size:12.5px; font-weight:600;
+    cursor:pointer; padding:2px 6px;
+  }
+  .manual-row .remove-btn:hover{text-decoration:underline;}
 
   .month-summary{display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;}
   .chip{
@@ -240,6 +287,45 @@
     <p class="eyebrow">Recursos Humanos · Grupo Metelmex</p>
     <h1>Dashboard de Cumpleañeros</h1>
     <p class="sub">Consulta cumpleaños por mes, busca por número de ficha y da seguimiento a las alertas de próxima jubilación y personal administrativo.</p>
+    <button id="addEmployeeBtn" class="export-btn topbar-btn" type="button">+ Agregar colaborador</button>
+  </div>
+</div>
+
+<div class="overlay" id="addEmployeeOverlay" aria-hidden="true">
+  <div class="modal card" role="dialog" aria-modal="true" aria-labelledby="addEmployeeTitle">
+    <div class="modal-head">
+      <h2 id="addEmployeeTitle">Agregar colaborador</h2>
+      <button type="button" class="modal-close" id="addEmployeeCloseBtn" aria-label="Cerrar">✕</button>
+    </div>
+
+    <form id="addEmployeeForm" novalidate>
+      <div class="form-grid">
+        <label>Ficha<input type="text" id="f_codigo" required inputmode="numeric"></label>
+        <label>Nombre completo<input type="text" id="f_nombre" required></label>
+        <label>Fecha de nacimiento<input type="date" id="f_fecha" required></label>
+        <label>Departamento<input type="text" id="f_departamento" list="deptoOptions" required></label>
+        <label>Puesto<input type="text" id="f_puesto" required></label>
+        <label>Clasificación<input type="text" id="f_kpi" list="kpiOptions" required></label>
+      </div>
+      <datalist id="deptoOptions"></datalist>
+      <datalist id="kpiOptions"></datalist>
+      <p class="form-error" id="addEmployeeError" hidden></p>
+      <div class="modal-actions">
+        <button type="submit" class="export-btn">Guardar</button>
+      </div>
+    </form>
+
+    <div class="manual-list-section">
+      <div class="section-head">
+        <h3>Colaboradores agregados en este dispositivo (<span id="manualCount">0</span>)</h3>
+      </div>
+      <div id="manualEmployeeList"></div>
+      <div class="modal-actions">
+        <button type="button" class="export-btn" id="exportManualBtn">⬇ Exportar agregados (Excel)</button>
+        <button type="button" class="export-btn" id="copyManualJsonBtn">Copiar JSON</button>
+      </div>
+      <p class="empty-note">Estos registros se guardan solo en este navegador. Para hacerlos permanentes para todo el equipo, exporta y comparte los datos para actualizar la matriz fuente del archivo.</p>
+    </div>
   </div>
 </div>
 
@@ -353,7 +439,7 @@ function excelSerialToDate(serial){
 const today = new Date();
 today.setHours(0,0,0,0);
 
-const employees = RAW_DATA.map(e => {
+function deriveEmployee(e){
   const birth = excelSerialToDate(e.fechaSerial);
   let age = today.getUTCFullYear() - birth.getUTCFullYear();
   const hadBirthdayThisYear = (today.getUTCMonth() > birth.getUTCMonth()) ||
@@ -382,9 +468,17 @@ const employees = RAW_DATA.map(e => {
     daysToNextBirthday,
     isAdmin: e.kpi === 'Administrativo'
   };
-});
+}
+
+const employees = RAW_DATA.map(deriveEmployee);
 
 const fmtDate = (m,d) => `${d} de ${MESES[m]}`;
+
+/* ---------- FECHA <-> SERIAL EXCEL (para altas manuales) ---------- */
+function dateToExcelSerial(dateStr){
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86400000) + 25569;
+}
 
 /* ---------- SEGUIMIENTO PERSISTENTE (marcar como felicitado) ---------- */
 const STORAGE_KEY = 'mmx_cumple_felicitados';
@@ -404,6 +498,37 @@ function toggleGreeted(codigo){
   if(greetedMap[k]) delete greetedMap[k];
   else greetedMap[k] = true;
   saveGreeted(greetedMap);
+}
+
+/* ---------- ALTAS MANUALES (agregar colaborador) ---------- */
+const MANUAL_STORAGE_KEY = 'mmx_cumple_agregados';
+function loadManualEmployees(){
+  try{ return JSON.parse(localStorage.getItem(MANUAL_STORAGE_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function saveManualEmployees(list){
+  try{ localStorage.setItem(MANUAL_STORAGE_KEY, JSON.stringify(list)); }catch(e){}
+}
+let manualEmployees = loadManualEmployees();
+manualEmployees.forEach(raw => employees.push(deriveEmployee(raw)));
+
+function isDuplicateCodigo(codigo){
+  return employees.some(e => e.codigo === codigo);
+}
+
+function addManualEmployee(raw){
+  manualEmployees.push(raw);
+  saveManualEmployees(manualEmployees);
+  employees.push(deriveEmployee(raw));
+}
+
+function removeManualEmployee(codigo){
+  const idx = manualEmployees.findIndex(e => e.codigo === codigo);
+  if(idx === -1) return;
+  manualEmployees.splice(idx, 1);
+  saveManualEmployees(manualEmployees);
+  const empIdx = employees.findIndex(e => e.codigo === codigo);
+  if(empIdx !== -1) employees.splice(empIdx, 1);
 }
 
 /* ---------- KPI STRIP ---------- */
@@ -600,12 +725,20 @@ function renderSearch(){
 }
 
 /* ---------- TABLE ---------- */
-function populateTableFilters(){
+function refreshTableFilterOptions(){
+  const deptoSel = document.getElementById('deptoFilter');
+  const kpiSel = document.getElementById('kpiFilter');
   const deptos = [...new Set(employees.map(e => e.departamento))].sort();
   const kpis = [...new Set(employees.map(e => e.kpi))].sort();
-  document.getElementById('deptoFilter').insertAdjacentHTML('beforeend', deptos.map(d => `<option value="${d}">${titleCase(d)}</option>`).join(''));
+  deptoSel.querySelectorAll('option:not([value=""])').forEach(o => o.remove());
+  kpiSel.querySelectorAll('option:not([value=""])').forEach(o => o.remove());
+  deptoSel.insertAdjacentHTML('beforeend', deptos.map(d => `<option value="${d}">${titleCase(d)}</option>`).join(''));
+  kpiSel.insertAdjacentHTML('beforeend', kpis.map(k => `<option value="${k}">${k}</option>`).join(''));
+}
+
+function populateTableFilters(){
+  refreshTableFilterOptions();
   document.getElementById('monthFilter').insertAdjacentHTML('beforeend', MESES.map((m,i) => `<option value="${i}">${m}</option>`).join(''));
-  document.getElementById('kpiFilter').insertAdjacentHTML('beforeend', kpis.map(k => `<option value="${k}">${k}</option>`).join(''));
 
   ['deptoFilter','monthFilter','kpiFilter','tableSearch'].forEach(id => {
     document.getElementById(id).addEventListener('input', renderTable);
@@ -641,11 +774,17 @@ function renderTable(){
 }
 
 /* ---------- CHART ---------- */
+let distChartInstance = null;
 function renderChart(){
   const counts = new Array(12).fill(0);
   employees.forEach(e => counts[e.birthMonth]++);
+  if(distChartInstance){
+    distChartInstance.data.datasets[0].data = counts;
+    distChartInstance.update();
+    return;
+  }
   const ctx = document.getElementById('distChart').getContext('2d');
-  new Chart(ctx, {
+  distChartInstance = new Chart(ctx, {
     type: 'bar',
     data: {
       labels: MESES,
@@ -670,6 +809,149 @@ function renderChart(){
   });
 }
 
+/* ---------- MODAL: AGREGAR COLABORADOR ---------- */
+function afterEmployeesChanged(){
+  renderKPIs();
+  renderAlert60();
+  renderAlertOver60();
+  refreshTableFilterOptions();
+  renderTable();
+  renderMonth(parseInt(document.getElementById('monthSelect').value));
+  renderChart();
+  renderManualList();
+}
+
+function renderManualList(){
+  const listEl = document.getElementById('manualEmployeeList');
+  document.getElementById('manualCount').textContent = manualEmployees.length;
+  if(manualEmployees.length === 0){
+    listEl.innerHTML = '<p class="empty-note">Aún no se han agregado colaboradores en este dispositivo.</p>';
+    return;
+  }
+  listEl.innerHTML = manualEmployees.map(e => `
+    <div class="manual-row">
+      <span>${titleCase(e.nombre)} · Ficha ${e.codigo}</span>
+      <button type="button" class="remove-btn" data-codigo="${e.codigo}">Eliminar</button>
+    </div>`).join('');
+}
+
+function populateAddEmployeeDatalists(){
+  const deptos = [...new Set(employees.map(e => e.departamento))].sort();
+  const kpis = [...new Set(employees.map(e => e.kpi))].sort();
+  document.getElementById('deptoOptions').innerHTML = deptos.map(d => `<option value="${titleCase(d)}">`).join('');
+  document.getElementById('kpiOptions').innerHTML = kpis.map(k => `<option value="${k}">`).join('');
+}
+
+function showAddEmployeeError(msg){
+  const el = document.getElementById('addEmployeeError');
+  el.textContent = msg;
+  el.hidden = false;
+}
+function hideAddEmployeeError(){
+  document.getElementById('addEmployeeError').hidden = true;
+}
+
+function openAddEmployeeModal(){
+  populateAddEmployeeDatalists();
+  renderManualList();
+  hideAddEmployeeError();
+  const overlay = document.getElementById('addEmployeeOverlay');
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.getElementById('f_codigo').focus();
+}
+function closeAddEmployeeModal(){
+  const overlay = document.getElementById('addEmployeeOverlay');
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
+}
+
+function initAddEmployeeModal(){
+  const overlay = document.getElementById('addEmployeeOverlay');
+  document.getElementById('addEmployeeBtn').addEventListener('click', openAddEmployeeModal);
+  document.getElementById('addEmployeeCloseBtn').addEventListener('click', closeAddEmployeeModal);
+  overlay.addEventListener('click', (ev) => { if(ev.target === overlay) closeAddEmployeeModal(); });
+  document.addEventListener('keydown', (ev) => {
+    if(ev.key === 'Escape' && overlay.classList.contains('open')) closeAddEmployeeModal();
+  });
+
+  document.getElementById('addEmployeeForm').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const codigo = document.getElementById('f_codigo').value.trim();
+    const nombre = document.getElementById('f_nombre').value.trim();
+    const fecha = document.getElementById('f_fecha').value;
+    const departamento = document.getElementById('f_departamento').value.trim();
+    const puesto = document.getElementById('f_puesto').value.trim();
+    const kpi = document.getElementById('f_kpi').value.trim();
+
+    if(!codigo || !nombre || !fecha || !departamento || !puesto || !kpi){
+      showAddEmployeeError('Completa todos los campos.');
+      return;
+    }
+    if(isDuplicateCodigo(codigo)){
+      showAddEmployeeError(`Ya existe un colaborador con la ficha ${codigo}.`);
+      return;
+    }
+    const birthDate = new Date(fecha + 'T00:00:00Z');
+    if(isNaN(birthDate.getTime()) || birthDate >= today){
+      showAddEmployeeError('La fecha de nacimiento debe ser una fecha pasada válida.');
+      return;
+    }
+
+    const raw = {
+      codigo,
+      nombre: nombre.toUpperCase(),
+      departamento: departamento.toUpperCase(),
+      puesto: puesto.toUpperCase(),
+      fechaSerial: dateToExcelSerial(fecha),
+      estatus: 'ALTA',
+      kpi
+    };
+    addManualEmployee(raw);
+    hideAddEmployeeError();
+    ev.target.reset();
+    afterEmployeesChanged();
+  });
+
+  document.getElementById('manualEmployeeList').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('.remove-btn');
+    if(!btn) return;
+    removeManualEmployee(btn.dataset.codigo);
+    afterEmployeesChanged();
+  });
+
+  document.getElementById('exportManualBtn').addEventListener('click', () => {
+    if(manualEmployees.length === 0){
+      alert('No hay colaboradores agregados en este dispositivo para exportar.');
+      return;
+    }
+    const rows = manualEmployees.map(raw => {
+      const e = deriveEmployee(raw);
+      return {
+        'Ficha': e.codigo,
+        'Nombre': titleCase(e.nombre),
+        'Departamento': titleCase(e.departamento),
+        'Puesto': titleCase(e.puesto),
+        'Fecha de nacimiento': fmtDate(e.birthMonth, e.birthDay),
+        'Clasificación': e.kpi
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Agregados');
+    XLSX.writeFile(wb, 'Colaboradores_Agregados_Metelmex.xlsx');
+  });
+
+  document.getElementById('copyManualJsonBtn').addEventListener('click', (ev) => {
+    navigator.clipboard.writeText(JSON.stringify(manualEmployees, null, 2)).then(() => {
+      const btn = ev.currentTarget;
+      const original = btn.textContent;
+      btn.textContent = 'Copiado ✓';
+      setTimeout(() => { btn.textContent = original; }, 1500);
+    });
+  });
+}
+
 /* ---------- INIT ---------- */
 renderKPIs();
 renderAlert60();
@@ -680,6 +962,7 @@ renderSearch();
 populateTableFilters();
 renderTable();
 renderChart();
+initAddEmployeeModal();
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
