@@ -264,6 +264,8 @@
 
   /* Chart */
   .chart-wrap{position:relative; height:320px;}
+  .chart-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  .chart-label{font-size:12.5px; font-weight:600; color:var(--text-soft); margin:0 0 10px;}
 
   footer{
     text-align:center; font-size:12px; color:var(--text-soft); padding:20px 0 40px;
@@ -272,6 +274,7 @@
   @media (max-width:900px){
     .kpis{grid-template-columns:repeat(2,1fr);}
     .alert-row{grid-template-columns:1.4fr 1fr; row-gap:4px;}
+    .chart-grid{grid-template-columns:1fr;}
   }
   @media (max-width:560px){
     .kpis{grid-template-columns:1fr;}
@@ -411,14 +414,21 @@
     </div>
   </section>
 
-  <!-- Distribution chart -->
+  <!-- Distribution charts -->
   <section>
     <div class="section-head">
-      <h2>Distribución de cumpleaños por mes</h2>
-      <div class="desc">Útil para planear con anticipación festejos y detalles</div>
+      <h2>Distribución de la plantilla</h2>
+      <div class="desc">Útil para planear con anticipación festejos, detalles y renovación de personal</div>
     </div>
-    <div class="card">
-      <div class="chart-wrap"><canvas id="distChart"></canvas></div>
+    <div class="chart-grid">
+      <div class="card">
+        <p class="chart-label">Por mes de cumpleaños</p>
+        <div class="chart-wrap"><canvas id="distChart"></canvas></div>
+      </div>
+      <div class="card">
+        <p class="chart-label">Por rango de edad</p>
+        <div class="chart-wrap"><canvas id="ageDistChart"></canvas></div>
+      </div>
     </div>
   </section>
 
@@ -809,6 +819,53 @@ function renderChart(){
   });
 }
 
+const AGE_BUCKETS = ['Menores de 20','20-29','30-39','40-49','50-59','60 y más'];
+function ageBucket(age){
+  if(age < 20) return AGE_BUCKETS[0];
+  if(age < 30) return AGE_BUCKETS[1];
+  if(age < 40) return AGE_BUCKETS[2];
+  if(age < 50) return AGE_BUCKETS[3];
+  if(age < 60) return AGE_BUCKETS[4];
+  return AGE_BUCKETS[5];
+}
+
+let ageChartInstance = null;
+const AGE_COLORS = ['#123055','#3b7dd8','#d4a537','#2f8f6d','#c0562b','#a52418'];
+function renderAgeChart(){
+  const counts = AGE_BUCKETS.map(b => employees.filter(e => ageBucket(e.age) === b).length);
+  if(ageChartInstance){
+    ageChartInstance.data.datasets[0].data = counts;
+    ageChartInstance.update();
+    return;
+  }
+  const ctx = document.getElementById('ageDistChart').getContext('2d');
+  ageChartInstance = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: AGE_BUCKETS,
+      datasets: [{ data: counts, backgroundColor: AGE_COLORS, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, position: 'bottom', labels: { boxWidth: 12 } },
+        tooltip: {
+          callbacks: {
+            label(context){
+              const data = context.chart.data.datasets[0].data;
+              const total = data.reduce((a,b) => a+b, 0);
+              const value = context.parsed;
+              const pct = total ? Math.round((value/total)*100) : 0;
+              return `${context.label}: ${value} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
 /* ---------- MODAL: AGREGAR COLABORADOR ---------- */
 function afterEmployeesChanged(){
   renderKPIs();
@@ -818,6 +875,7 @@ function afterEmployeesChanged(){
   renderTable();
   renderMonth(parseInt(document.getElementById('monthSelect').value));
   renderChart();
+  renderAgeChart();
   renderManualList();
 }
 
@@ -962,6 +1020,7 @@ renderSearch();
 populateTableFilters();
 renderTable();
 renderChart();
+renderAgeChart();
 initAddEmployeeModal();
 
 if('serviceWorker' in navigator){
